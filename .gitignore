@@ -1,0 +1,52 @@
+# ---- Large data (archive separately, do not track) ----
+02_data/rdd2022_raw/
+02_data/processed_yolo/*/images/
+02_data/videos/*.mp4
+02_data/logs/
+02_data/processed_telemetry/
+
+# Old Ultralytics training directory (superseded by 00_frozen_artifacts/)
+yolo_trained/
+
+# Archived checkpoints
+archive/
+
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Experiment outputs (too large for git; archive separately) ----
+05_results/runs/*/
+!05_results/runs/README.md
+
+# ---- Temporary ----
+*.tmp
+*.log
+*.bak
+# ---- Backup archives ----
+*.zip
+*.tar.gz
+*.7z

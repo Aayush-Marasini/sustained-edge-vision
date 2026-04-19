@@ -1,0 +1,4 @@
+00_frozen_artifacts/**/*.pt filter=lfs diff=lfs merge=lfs -text
+00_frozen_artifacts/**/*.bin filter=lfs diff=lfs merge=lfs -text
+00_frozen_artifacts/**/*.xml filter=lfs diff=lfs merge=lfs -text
+00_frozen_artifacts/**/*.mp4 filter=lfs diff=lfs merge=lfs -text

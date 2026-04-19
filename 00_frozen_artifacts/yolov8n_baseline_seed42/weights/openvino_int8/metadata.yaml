@@ -1,0 +1,25 @@
+description: Ultralytics best model trained on data.yaml
+author: Ultralytics
+date: '2026-04-01T19:41:19.623194'
+version: 8.4.7
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: D00
+  1: D10
+  2: D20
+  3: D40
+args:
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: true
+  dynamic: false
+  nms: false
+channels: 3

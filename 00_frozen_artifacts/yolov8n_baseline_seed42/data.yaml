@@ -1,0 +1,10 @@
+path: ../02_data/processed_yolo
+train: train/images
+val: val/images
+test: test/images
+nc: 4
+names:
+  - D00
+  - D10
+  - D20
+  - D40
