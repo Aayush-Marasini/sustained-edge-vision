@@ -1,339 +1,695 @@
 """
 telemetry_pipeline.py
+=====================
+Synchronized telemetry logger for sustained edge inference experiments.
 
-Collects 6 hardware signals at 5 Hz from Raspberry Pi 5:
-  - T_soc: SoC temperature (°C)
-  - V_core: Core voltage (V)
-  - U_cpu: Aggregate CPU utilization (%)
-  - throttle: Throttle flag (0/1)
-  - cpu_freq: ARM clock frequency (MHz)
-  - mem_util: Memory utilization (%)
+Grounding
+---------
+- WorkPlan_marked.pdf, Task 10 (§6.2): unified 5 Hz pipeline collecting
+  T(t), U(t), V(t), cpu_freq, mem_util, throttle. Per-signal documentation
+  of data source, sampling rate, smoothing method, inference sync method.
+- proposal_v2.pdf §4: state vector s(t) = [T, T_dot, U, U_dot, V, V_dot].
+  Raw signals land here; derivatives are computed downstream by
+  03_code/scheduler/derivatives.py.
+- WorkPlan_marked.pdf §1.1 Reproducibility Rule: session metadata
+  (git SHA, hardware, software, seed, ambient, cooling) is written at
+  start as metadata.partial.json and finalized at clean shutdown.
 
-Runs as a subprocess, writes to CSV + JSON metadata sidecar.
-Designed for minimal CPU overhead (<1%).
+Architecture
+------------
+One producer, two consumers:
+  1. CSV writer (inline, same process)  -> telemetry_raw.csv
+  2. Optional mp.Queue subscriber        -> scheduler runtime
+Drop-on-full policy ensures a slow scheduler cannot block the sampler.
 
-Usage:
-  from telemetry_pipeline import TelemetryPipeline
-  pipe = TelemetryPipeline(run_dir="/path/to/run", duration_sec=600)
-  pipe.start()
-  # ... do inference ...
-  pipe.stop()
+Signals collected
+-----------------
+  temp_soc_c       SoC temperature (deg C)       from /sys/class/hwmon
+  volt_core_v      Core voltage (V)              from vcgencmd measure_volts core
+  cpu_util_percent Aggregate CPU utilization (%) from psutil.cpu_percent
+  mem_util_percent RAM utilization (%)           from psutil.virtual_memory
+  cpu_freq_mhz     ARM clock (MHz)               from vcgencmd measure_clock arm
+  throttle_raw     vcgencmd get_throttled word   from vcgencmd get_throttled
+  throttled_now    Bit 2 of throttle_raw (currently throttled)
+  undervolt_now    Bit 0 of throttle_raw (undervoltage detected)
+
+Throttle bit layout (per Raspberry Pi documentation)
+----------------------------------------------------
+  bit 0  (0x1)    undervoltage detected NOW
+  bit 1  (0x2)    arm frequency capped NOW
+  bit 2  (0x4)    currently throttled NOW              <-- this is the
+                                                          thermal event
+  bit 3  (0x8)    soft temperature limit active NOW
+  bits 16-19      sticky "has occurred since boot"
+
+The raw word is logged so any bit can be reconstructed in post-processing
+without a re-run.
+
+Change log
+----------
+v0.2 (2026-04-19): Severity 1 fixes from PI review.
+  - FIXED: throttle bit mask was 0x1 (undervoltage), corrected to 0x4.
+           All earlier logs (if any) must be treated as invalid for any
+           throttle-based metric.
+  - FIXED: sensor-failure fallback was 0.0, now None (empty CSV cell) so
+           downstream code sees the gap and does not produce spurious
+           derivatives.
+  - FIXED: drift-prone sleep() replaced with absolute-deadline sampler.
+  - ADDED: psutil warmup call, per-signal failure counters, richer
+           metadata, partial metadata at start, optional scheduler queue.
+
+Usage
+-----
+    from telemetry_pipeline import TelemetryPipeline
+    pipe = TelemetryPipeline(run_dir="05_results/runs/2026-04-19_smoke",
+                             duration_sec=600)
+    pipe.start()
+    # ... do inference ...
+    pipe.stop()
+
+With a scheduler consumer:
+
+    import multiprocessing as mp
+    q = mp.Queue(maxsize=100)
+    pipe = TelemetryPipeline(run_dir=..., scheduler_queue=q)
+    pipe.start()
+    # In scheduler process: q.get() yields sample dicts.
 """
 
-import os
-import sys
-import time
-import json
+from __future__ import annotations
+
 import csv
+import json
+import logging
+import multiprocessing as mp
+import os
+import queue as queue_mod
 import signal
 import subprocess
-from pathlib import Path
+import sys
+import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-import multiprocessing as mp
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+log = logging.getLogger(__name__)
+
+
+# -- Public API ---------------------------------------------------------------
 
 
 class TelemetryPipeline:
     """
-    Collects hardware telemetry in a subprocess.
-    
-    Non-blocking: spawns worker process, returns immediately.
-    Data written to disk asynchronously.
+    Non-blocking telemetry logger that runs in a subprocess.
+
+    Writes telemetry_raw.csv and run_metadata.json into run_dir. Optionally
+    publishes each sample onto scheduler_queue for live consumption.
+
+    Parameters
+    ----------
+    run_dir : path
+        Directory for CSV and metadata output. Created if it does not exist.
+    sampling_rate_hz : float, default 5.0
+        Target sampling rate. 5 Hz = 200 ms period, matches proposal_v2.pdf.
+    duration_sec : float, optional
+        If given, the worker stops automatically after this many seconds.
+        If None, runs until stop() is called.
+    ambient_temp_c : float, optional
+        Ambient temperature in deg C, recorded in metadata. Required by
+        Reproducibility Rule for cross-run thermal comparison.
+    cooling_condition : str
+        "passive" or "active_fan" etc. Free-form label for metadata.
+    tags : dict, optional
+        Arbitrary run-level metadata (workload name, operator initials, etc.).
+    scheduler_queue : multiprocessing.Queue, optional
+        If given, each sample dict is also pushed here via put_nowait. Full
+        queue drops are counted and reported at shutdown.
+    seed : int, optional
+        Random seed in use for the session. Logged in metadata per §1.1.
     """
-    
+
     def __init__(
         self,
-        run_dir,
-        sampling_rate_hz=5,
-        duration_sec=None,
-        ambient_temp_c=None,
-        cooling_condition="unknown",
-        tags=None,
+        run_dir: str | os.PathLike,
+        sampling_rate_hz: float = 5.0,
+        duration_sec: Optional[float] = None,
+        ambient_temp_c: Optional[float] = None,
+        cooling_condition: str = "unknown",
+        tags: Optional[Dict[str, Any]] = None,
+        scheduler_queue: Optional[mp.Queue] = None,
+        seed: Optional[int] = None,
     ):
-        """
-        Args:
-            run_dir: Directory where CSV and JSON are written
-            sampling_rate_hz: Target sampling rate (default 5 Hz)
-            duration_sec: Max duration; None = run until stop() called
-            ambient_temp_c: Ambient temperature for metadata
-            cooling_condition: "passive" or "active" for metadata
-            tags: Dict of arbitrary metadata tags
-        """
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        
-        self.sampling_rate_hz = sampling_rate_hz
-        self.sample_interval = 1.0 / sampling_rate_hz
+
+        if sampling_rate_hz <= 0:
+            raise ValueError(f"sampling_rate_hz must be positive, got {sampling_rate_hz}")
+        self.sampling_rate_hz = float(sampling_rate_hz)
         self.duration_sec = duration_sec
-        self.ambient_temp_c = ambient_temp_c or 25.0
+        self.ambient_temp_c = ambient_temp_c
         self.cooling_condition = cooling_condition
-        self.tags = tags or {}
-        
+        self.tags = dict(tags) if tags else {}
+        self.scheduler_queue = scheduler_queue
+        self.seed = seed
+
         self.csv_path = self.run_dir / "telemetry_raw.csv"
         self.metadata_path = self.run_dir / "run_metadata.json"
-        
-        self._process = None
-        self._stop_event = None
-        self._start_time_monotonic = None
-        self._start_time_utc = None
-    
-    def start(self):
-        """Spawn telemetry subprocess."""
+        self.partial_metadata_path = self.run_dir / "run_metadata.partial.json"
+
+        self._process: Optional[mp.Process] = None
+        self._stop_event: Optional[mp.Event] = None
+        self._shared_start_monotonic: Optional[mp.Value] = None
+
+    def start(self) -> float:
+        """
+        Spawn the telemetry subprocess. Returns the shared monotonic start
+        time. Any other process on the same host that wants to log events
+        on the same time base (e.g. the inference runtime) should read this
+        value and write its own CSV using `time.monotonic() - start`.
+        """
+        if self._process is not None:
+            raise RuntimeError("TelemetryPipeline already started")
+
         self._stop_event = mp.Event()
-        self._start_time_monotonic = time.monotonic()
-        self._start_time_utc = datetime.now(timezone.utc).isoformat()
-        
+        # Shared float the parent can hand to other processes for clock
+        # alignment. Written by the worker once it has captured its own
+        # monotonic reference.
+        self._shared_start_monotonic = mp.Value("d", 0.0)
+
         self._process = mp.Process(
-            target=_telemetry_worker,
+            target=_telemetry_worker_entry,
             args=(
-                self.csv_path,
-                self.metadata_path,
+                str(self.csv_path),
+                str(self.metadata_path),
+                str(self.partial_metadata_path),
                 self.sampling_rate_hz,
                 self.duration_sec,
                 self._stop_event,
-                self._start_time_monotonic,
-                self._start_time_utc,
+                self._shared_start_monotonic,
                 self.ambient_temp_c,
                 self.cooling_condition,
                 self.tags,
+                self.scheduler_queue,
+                self.seed,
             ),
+            daemon=False,
+            name="telemetry_worker",
         )
         self._process.start()
-    
-    def stop(self):
+
+        # Wait briefly for the worker to publish its start time so callers
+        # can synchronize against it.
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and self._shared_start_monotonic.value == 0.0:
+            time.sleep(0.01)
+
+        return float(self._shared_start_monotonic.value)
+
+    def stop(self, timeout: float = 5.0) -> None:
         """Stop the telemetry subprocess gracefully."""
         if self._process is None:
             return
-        
+
         self._stop_event.set()
-        self._process.join(timeout=5)
+        self._process.join(timeout=timeout)
+
         if self._process.is_alive():
+            log.warning("telemetry worker did not exit cleanly, terminating")
             self._process.terminate()
-            self._process.join(timeout=1)
+            self._process.join(timeout=1.0)
             if self._process.is_alive():
+                log.error("telemetry worker did not respond to SIGTERM, killing")
                 self._process.kill()
+                self._process.join()
+
+        self._process = None
+
+    @property
+    def shared_start_monotonic(self) -> float:
+        """
+        Monotonic clock value (seconds) at which the first telemetry sample
+        was recorded. Other processes use this to align their own event logs.
+        Returns 0.0 if not yet started.
+        """
+        if self._shared_start_monotonic is None:
+            return 0.0
+        return float(self._shared_start_monotonic.value)
 
 
-def _telemetry_worker(
-    csv_path,
-    metadata_path,
-    sampling_rate_hz,
-    duration_sec,
-    stop_event,
-    start_time_monotonic,
-    start_time_utc,
-    ambient_temp_c,
-    cooling_condition,
-    tags,
-):
-    """
-    Worker process: samples signals and writes to CSV.
-    
-    Runs in a separate process to minimize blocking on main thread.
-    """
-    
-    # Signal handlers for graceful shutdown
-    def handle_signal(signum, frame):
+# -- Worker process -----------------------------------------------------------
+
+
+# Columns in telemetry_raw.csv. Order is stable and must not change
+# silently (No Silent Changes Rule).
+_CSV_FIELDNAMES = [
+    "monotonic_offset_s",
+    "utc_timestamp",
+    "temp_soc_c",
+    "volt_core_v",
+    "cpu_util_percent",
+    "mem_util_percent",
+    "cpu_freq_mhz",
+    "throttle_raw",
+    "throttled_now",
+    "undervolt_now",
+]
+
+
+@dataclass
+class _FailureCounters:
+    """Per-signal consecutive failure counter for trace-quality reporting."""
+    temp_soc: int = 0
+    volt_core: int = 0
+    cpu_util: int = 0
+    mem_util: int = 0
+    cpu_freq: int = 0
+    throttled: int = 0
+    scheduler_queue_drops: int = 0
+
+    def as_dict(self) -> Dict[str, int]:
+        return {
+            "temp_soc": self.temp_soc,
+            "volt_core": self.volt_core,
+            "cpu_util": self.cpu_util,
+            "mem_util": self.mem_util,
+            "cpu_freq": self.cpu_freq,
+            "throttled": self.throttled,
+            "scheduler_queue_drops": self.scheduler_queue_drops,
+        }
+
+
+def _telemetry_worker_entry(
+    csv_path_str: str,
+    metadata_path_str: str,
+    partial_metadata_path_str: str,
+    sampling_rate_hz: float,
+    duration_sec: Optional[float],
+    stop_event: mp.Event,
+    shared_start_monotonic: mp.Value,
+    ambient_temp_c: Optional[float],
+    cooling_condition: str,
+    tags: Dict[str, Any],
+    scheduler_queue: Optional[mp.Queue],
+    seed: Optional[int],
+) -> None:
+    """Worker process entry point. Runs the sampling loop until stop."""
+
+    def _handle_signal(signum, frame):
         stop_event.set()
-    
-    signal.signal(signal.SIGTERM, handle_signal)
-    signal.signal(signal.SIGINT, handle_signal)
-    
-    # Collect metadata before sampling
+
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
+    csv_path = Path(csv_path_str)
+    metadata_path = Path(metadata_path_str)
+    partial_metadata_path = Path(partial_metadata_path_str)
+
+    # Gather session metadata BEFORE sampling starts, write partial file
+    # immediately so a crashed run still has context.
+    session_meta = _gather_session_metadata(
+        csv_path=csv_path,
+        sampling_rate_hz=sampling_rate_hz,
+        duration_sec=duration_sec,
+        ambient_temp_c=ambient_temp_c,
+        cooling_condition=cooling_condition,
+        tags=tags,
+        seed=seed,
+    )
+    _write_json_atomic(partial_metadata_path, session_meta)
+
+    # psutil warmup: first cpu_percent(None) call returns 0.0 because
+    # there is no prior reference. Fire a throwaway so the first real
+    # sample is valid.
     try:
-        git_sha = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=Path(csv_path).parent.parent.parent,
-            text=True,
-        ).strip()
-    except:
-        git_sha = "unknown"
-    
-    try:
-        hostname = subprocess.check_output(["hostname"], text=True).strip()
-    except:
-        hostname = "unknown"
-    
-    # Open CSV for writing
-    fieldnames = [
-        "monotonic_offset_s",
-        "utc_timestamp",
-        "temp_soc_c",
-        "volt_core_v",
-        "cpu_util_percent",
-        "throttled",
-        "cpu_freq_mhz",
-        "mem_util_percent",
-    ]
-    
+        import psutil  # imported here so the main process is not forced to have it
+        psutil.cpu_percent(interval=None)
+    except ImportError:
+        log.warning("psutil not available; cpu_util and mem_util will be None")
+        psutil = None  # type: ignore
+
+    sample_interval = 1.0 / sampling_rate_hz
+    failures = _FailureCounters()
+
     csv_file = open(csv_path, "w", newline="")
-    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+    writer = csv.DictWriter(csv_file, fieldnames=_CSV_FIELDNAMES)
     writer.writeheader()
     csv_file.flush()
-    
-    sample_interval = 1.0 / sampling_rate_hz
-    sample_count = 0
-    
+
+    # Record the start-of-sampling monotonic reference. Everything after
+    # this uses absolute deadlines against this anchor, so sleep jitter
+    # does not accumulate over long runs.
+    start_monotonic = time.monotonic()
+    shared_start_monotonic.value = start_monotonic
+
+    sample_index = 0
     try:
         while not stop_event.is_set():
-            # Check duration
-            if duration_sec is not None:
-                elapsed = time.monotonic() - start_time_monotonic
-                if elapsed >= duration_sec:
+            target = start_monotonic + sample_index * sample_interval
+
+            # Stop if we have reached the requested duration.
+            if duration_sec is not None and (target - start_monotonic) >= duration_sec:
+                break
+
+            now = time.monotonic()
+            if now < target:
+                # Use a short timeout on the stop event so we remain
+                # responsive to shutdown while waiting for the next tick.
+                stop_event.wait(timeout=target - now)
+                if stop_event.is_set():
                     break
-            
-            # Collect all signals
-            sample_time = time.monotonic()
-            utc_now = datetime.now(timezone.utc).isoformat()
-            
-            signals = _read_signals()
-            
-            # Write row
+
+            sample_monotonic = time.monotonic()
+            sample = _read_all_signals(psutil, failures)
             row = {
-                "monotonic_offset_s": sample_time - start_time_monotonic,
-                "utc_timestamp": utc_now,
-                "temp_soc_c": signals["temp_soc"],
-                "volt_core_v": signals["volt_core"],
-                "cpu_util_percent": signals["cpu_util"],
-                "throttled": signals["throttled"],
-                "cpu_freq_mhz": signals["cpu_freq"],
-                "mem_util_percent": signals["mem_util"],
+                "monotonic_offset_s": round(sample_monotonic - start_monotonic, 6),
+                "utc_timestamp": datetime.now(timezone.utc).isoformat(),
+                **sample,
             }
             writer.writerow(row)
-            
-            # Flush periodically (every 10 samples = 2 seconds at 5 Hz)
-            sample_count += 1
-            if sample_count % 10 == 0:
+
+            if scheduler_queue is not None:
+                try:
+                    scheduler_queue.put_nowait(row)
+                except queue_mod.Full:
+                    failures.scheduler_queue_drops += 1
+
+            sample_index += 1
+            if sample_index % 10 == 0:  # flush every ~2 s at 5 Hz
                 csv_file.flush()
-            
-            # Sleep until next sample
-            elapsed_this_iteration = time.monotonic() - sample_time
-            sleep_time = sample_interval - elapsed_this_iteration
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-    
+
+    except Exception as exc:  # pragma: no cover - defensive
+        log.exception("telemetry worker crashed: %s", exc)
+        session_meta["crashed"] = True
+        session_meta["crash_reason"] = repr(exc)
     finally:
+        csv_file.flush()
         csv_file.close()
-        
-        # Write metadata sidecar
-        metadata = {
-            "git_sha": git_sha,
-            "hostname": hostname,
-            "start_time_utc": start_time_utc,
-            "end_time_utc": datetime.now(timezone.utc).isoformat(),
-            "sampling_rate_hz": sampling_rate_hz,
-            "samples_collected": sample_count,
-            "ambient_temp_c": ambient_temp_c,
-            "cooling_condition": cooling_condition,
-            "tags": tags,
-        }
-        
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+
+        session_meta["end_time_utc"] = datetime.now(timezone.utc).isoformat()
+        session_meta["samples_collected"] = sample_index
+        expected_samples = (
+            int(duration_sec * sampling_rate_hz) if duration_sec is not None else None
+        )
+        session_meta["samples_expected"] = expected_samples
+        session_meta["failure_counts"] = failures.as_dict()
+        session_meta["trace_quality"] = _compute_trace_quality(
+            csv_path=csv_path,
+            sampling_rate_hz=sampling_rate_hz,
+            samples_collected=sample_index,
+            samples_expected=expected_samples,
+            failures=failures,
+        )
+
+        _write_json_atomic(metadata_path, session_meta)
+        try:
+            partial_metadata_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
-def _read_signals():
+# -- Signal readers -----------------------------------------------------------
+
+
+# Primary thermal endpoint on Pi 5. Fallback to thermal_zone0 if hwmon is
+# renumbered by a kernel update (this has happened historically on RPi).
+_HWMON_TEMP_PATHS = (
+    "/sys/class/hwmon/hwmon0/temp1_input",
+    "/sys/class/thermal/thermal_zone0/temp",
+)
+
+
+def _read_all_signals(psutil_mod: Any, failures: _FailureCounters) -> Dict[str, Any]:
     """
-    Read all six signals from hardware endpoints.
-    Returns dict with keys: temp_soc, volt_core, cpu_util, throttled, cpu_freq, mem_util
+    Read every signal exactly once. Any failure produces None (not 0.0)
+    so downstream derivative computation sees a gap and skips that sample.
+
+    Returns a dict keyed by _CSV_FIELDNAMES minus monotonic_offset_s and
+    utc_timestamp (those are stamped by the caller).
     """
-    signals = {}
-    
-    # Temperature from hwmon0 (cpu_thermal)
+    return {
+        "temp_soc_c": _read_temp(failures),
+        "volt_core_v": _read_volt_core(failures),
+        "cpu_util_percent": _read_cpu_util(psutil_mod, failures),
+        "mem_util_percent": _read_mem_util(psutil_mod, failures),
+        "cpu_freq_mhz": _read_cpu_freq(failures),
+        **_read_throttle(failures),
+    }
+
+
+def _read_temp(failures: _FailureCounters) -> Optional[float]:
+    for path in _HWMON_TEMP_PATHS:
+        try:
+            with open(path) as f:
+                milli = int(f.read().strip())
+                return milli / 1000.0
+        except (OSError, ValueError):
+            continue
+    failures.temp_soc += 1
+    return None
+
+
+def _read_volt_core(failures: _FailureCounters) -> Optional[float]:
+    out = _run(["vcgencmd", "measure_volts", "core"])
+    if out is None:
+        failures.volt_core += 1
+        return None
     try:
-        with open("/sys/class/hwmon/hwmon0/temp1_input") as f:
-            temp_millidegrees = int(f.read().strip())
-            signals["temp_soc"] = temp_millidegrees / 1000.0
-    except:
-        signals["temp_soc"] = 0.0
-    
-    # Voltage from vcgencmd
+        # "volt=0.7500V"
+        return float(out.split("=", 1)[1].rstrip("V"))
+    except (IndexError, ValueError):
+        failures.volt_core += 1
+        return None
+
+
+def _read_cpu_util(psutil_mod: Any, failures: _FailureCounters) -> Optional[float]:
+    if psutil_mod is None:
+        failures.cpu_util += 1
+        return None
     try:
-        output = subprocess.check_output(
-            ["vcgencmd", "measure_volts", "core"],
-            text=True,
-        ).strip()
-        # Format: "volt=0.7500V"
-        volt_str = output.split("=")[1].rstrip("V")
-        signals["volt_core"] = float(volt_str)
-    except:
-        signals["volt_core"] = 0.0
-    
-    # CPU utilization (aggregate across all cores)
+        return float(psutil_mod.cpu_percent(interval=None))
+    except Exception:
+        failures.cpu_util += 1
+        return None
+
+
+def _read_mem_util(psutil_mod: Any, failures: _FailureCounters) -> Optional[float]:
+    if psutil_mod is None:
+        failures.mem_util += 1
+        return None
     try:
-        import psutil
-        signals["cpu_util"] = psutil.cpu_percent(interval=None)
-    except:
-        signals["cpu_util"] = 0.0
-    
-    # Throttle flag from vcgencmd
+        return float(psutil_mod.virtual_memory().percent)
+    except Exception:
+        failures.mem_util += 1
+        return None
+
+
+def _read_cpu_freq(failures: _FailureCounters) -> Optional[float]:
+    out = _run(["vcgencmd", "measure_clock", "arm"])
+    if out is None:
+        failures.cpu_freq += 1
+        return None
     try:
-        output = subprocess.check_output(
-            ["vcgencmd", "get_throttled"],
-            text=True,
-        ).strip()
-        # Format: "throttled=0x0"
-        throttle_hex = output.split("=")[1]
-        throttle_int = int(throttle_hex, 16)
-        # Bit 0 = currently throttled, bit 2 = has throttled
-        signals["throttled"] = 1 if (throttle_int & 0x1) else 0
-    except:
-        signals["throttled"] = 0
-    
-    # CPU frequency from vcgencmd
+        # "frequency(0)=1500019456"
+        hz = int(out.split("=", 1)[1])
+        return hz / 1.0e6  # -> MHz
+    except (IndexError, ValueError):
+        failures.cpu_freq += 1
+        return None
+
+
+def _read_throttle(failures: _FailureCounters) -> Dict[str, Optional[int]]:
+    out = _run(["vcgencmd", "get_throttled"])
+    if out is None:
+        failures.throttled += 1
+        return {"throttle_raw": None, "throttled_now": None, "undervolt_now": None}
     try:
-        output = subprocess.check_output(
-            ["vcgencmd", "measure_clock", "arm"],
-            text=True,
-        ).strip()
-        # Format: "frequency(0)=1500019456"
-        freq_hz = int(output.split("=")[1])
-        signals["cpu_freq"] = freq_hz / 1e6  # Convert to MHz
-    except:
-        signals["cpu_freq"] = 0.0
-    
-    # Memory utilization
+        # "throttled=0x0"
+        raw = int(out.split("=", 1)[1], 16)
+    except (IndexError, ValueError):
+        failures.throttled += 1
+        return {"throttle_raw": None, "throttled_now": None, "undervolt_now": None}
+
+    return {
+        "throttle_raw": raw,
+        "throttled_now": 1 if (raw & 0x4) else 0,   # bit 2: currently throttled
+        "undervolt_now": 1 if (raw & 0x1) else 0,   # bit 0: undervoltage detected
+    }
+
+
+def _run(cmd) -> Optional[str]:
+    """Run a subprocess, returning stripped stdout or None on any failure."""
     try:
-        import psutil
-        mem = psutil.virtual_memory()
-        signals["mem_util"] = mem.percent
-    except:
-        signals["mem_util"] = 0.0
-    
-    return signals
+        return subprocess.check_output(cmd, text=True, timeout=1.0).strip()
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return None
+
+
+# -- Session metadata ---------------------------------------------------------
+
+
+def _gather_session_metadata(
+    csv_path: Path,
+    sampling_rate_hz: float,
+    duration_sec: Optional[float],
+    ambient_temp_c: Optional[float],
+    cooling_condition: str,
+    tags: Dict[str, Any],
+    seed: Optional[int],
+) -> Dict[str, Any]:
+    """Collect reproducibility fields required by WorkPlan §1.1."""
+    import platform
+
+    return {
+        "schema_version": "0.2",
+        "start_time_utc": datetime.now(timezone.utc).isoformat(),
+        "csv_path": str(csv_path),
+        "sampling_rate_hz": sampling_rate_hz,
+        "duration_sec": duration_sec,
+        "ambient_temp_c": ambient_temp_c,
+        "cooling_condition": cooling_condition,
+        "seed": seed,
+        "tags": tags,
+        "git": {
+            "sha": _run(["git", "rev-parse", "HEAD"]),
+            "branch": _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
+            "dirty": _git_dirty(),
+        },
+        "hardware": {
+            "hostname": _run(["hostname"]),
+            "pi_model": _read_device_tree_model(),
+            "firmware": _run(["vcgencmd", "version"]),
+            "kernel": _run(["uname", "-a"]),
+            "cpu_governor": _read_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"),
+            "arm_freq_config": _run(["vcgencmd", "get_config", "arm_freq"]),
+        },
+        "software": {
+            "python_version": sys.version,
+            "platform": platform.platform(),
+            "psutil_version": _pkg_version("psutil"),
+            "numpy_version": _pkg_version("numpy"),
+        },
+    }
+
+
+def _git_dirty() -> Optional[bool]:
+    out = _run(["git", "status", "--porcelain"])
+    if out is None:
+        return None
+    return len(out) > 0
+
+
+def _read_device_tree_model() -> Optional[str]:
+    try:
+        with open("/proc/device-tree/model") as f:
+            # device-tree strings are null-terminated
+            return f.read().rstrip("\x00").strip()
+    except OSError:
+        return None
+
+
+def _read_file(path: str) -> Optional[str]:
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def _pkg_version(name: str) -> Optional[str]:
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            return None
+    except ImportError:
+        return None
+
+
+def _write_json_atomic(path: Path, data: Dict[str, Any]) -> None:
+    """Write JSON via tmp + rename so partial writes are never visible."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _compute_trace_quality(
+    csv_path: Path,
+    sampling_rate_hz: float,
+    samples_collected: int,
+    samples_expected: Optional[int],
+    failures: _FailureCounters,
+) -> Dict[str, Any]:
+    """Lightweight post-run stats for trace-quality assessment."""
+    quality: Dict[str, Any] = {
+        "samples_collected": samples_collected,
+        "samples_expected": samples_expected,
+    }
+    if samples_expected and samples_expected > 0:
+        quality["completeness"] = round(samples_collected / samples_expected, 4)
+
+    total_failures = sum(
+        v for k, v in failures.as_dict().items() if k != "scheduler_queue_drops"
+    )
+    if samples_collected > 0:
+        quality["sensor_failure_rate"] = round(
+            total_failures / (samples_collected * 6), 4  # 6 signals per sample
+        )
+    quality["scheduler_queue_drop_count"] = failures.scheduler_queue_drops
+    return quality
+
+
+# -- Smoke test ---------------------------------------------------------------
 
 
 if __name__ == "__main__":
-    # Test: run for 30 seconds
-    import tempfile
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        print(f"Testing telemetry pipeline in {tmpdir}")
-        pipe = TelemetryPipeline(
-            run_dir=tmpdir,
-            sampling_rate_hz=5,
-            duration_sec=30,
-            ambient_temp_c=25,
-            cooling_condition="passive",
-        )
-        pipe.start()
-        print("Pipeline started. Collecting for 30 seconds...")
-        time.sleep(30)
-        pipe.stop()
-        
-        # Read and print CSV
-        csv_file = Path(tmpdir) / "telemetry_raw.csv"
-        if csv_file.exists():
-            with open(csv_file) as f:
-                lines = f.readlines()
-            print(f"\nCollected {len(lines) - 1} samples (header + {len(lines) - 1} data rows)")
-            print("First 5 rows:")
-            for line in lines[:6]:
-                print(line.rstrip())
-        
-        # Print metadata
-        metadata_file = Path(tmpdir) / "run_metadata.json"
-        if metadata_file.exists():
-            with open(metadata_file) as f:
-                metadata = json.load(f)
-            print("\nMetadata:")
-            print(json.dumps(metadata, indent=2))
+    # Smoke test: 30-second run into a real results directory (not tempfile
+    # so artifacts survive for inspection).
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--duration", type=float, default=30.0)
+    parser.add_argument(
+        "--run-dir",
+        default=f"05_results/runs/{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_smoketest",
+    )
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    pipe = TelemetryPipeline(
+        run_dir=args.run_dir,
+        sampling_rate_hz=5.0,
+        duration_sec=args.duration,
+        ambient_temp_c=25.0,
+        cooling_condition="passive",
+        tags={"purpose": "smoketest"},
+        seed=42,
+    )
+    shared_start = pipe.start()
+    print(f"Pipeline started; shared monotonic start = {shared_start:.6f}")
+    print(f"Sampling for {args.duration} s ...")
+    time.sleep(args.duration + 1.0)
+    pipe.stop()
+
+    csv_file = Path(args.run_dir) / "telemetry_raw.csv"
+    meta_file = Path(args.run_dir) / "run_metadata.json"
+
+    if csv_file.exists():
+        with open(csv_file) as f:
+            lines = f.readlines()
+        print(f"\nCollected {len(lines) - 1} data rows at {csv_file}")
+        for line in lines[: min(6, len(lines))]:
+            print("  " + line.rstrip())
+
+    if meta_file.exists():
+        with open(meta_file) as f:
+            meta = json.load(f)
+        print("\nTrace quality:")
+        print(json.dumps(meta.get("trace_quality", {}), indent=2))
+        print("\nFailure counts:")
+        print(json.dumps(meta.get("failure_counts", {}), indent=2))
