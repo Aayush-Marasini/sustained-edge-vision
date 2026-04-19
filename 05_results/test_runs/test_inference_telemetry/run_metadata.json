@@ -1,0 +1,13 @@
+{
+  "git_sha": "98fcbbc9c83504ea2fcc38a08b55801f2c43a088",
+  "hostname": "rpi5",
+  "start_time_utc": "2026-04-19T07:08:45.069166+00:00",
+  "end_time_utc": "2026-04-19T07:11:45.216675+00:00",
+  "sampling_rate_hz": 5,
+  "samples_collected": 900,
+  "ambient_temp_c": 25,
+  "cooling_condition": "passive",
+  "tags": {
+    "test": "inference_load"
+  }
+}
