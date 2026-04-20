@@ -64,3 +64,16 @@ and inspect the generated `run_metadata.json` for `trace_quality`.
 If `completeness >= 0.99` and `sensor_failure_rate == 0`, proceed to
 the 30-minute calibration runs. If not, triage the failing signal
 before moving on.
+
+## Progress log
+
+### 2026-04-19 evening
+- Task 10 smoketest succeeded on Pi 5 (150/150 samples, 0 failures).
+  run_metadata.json verified: git SHA 92b86a15, governor=ondemand,
+  Pi 5 Model B Rev 1.1, Python 3.13.5, psutil 7.2.2.
+- Added CLI flags and preflight check so calibration runs enforce
+  protocol.
+- Created EXPERIMENTAL_PROTOCOL.md documenting governor/cooling/ambient
+  decisions.
+- CALIBRATION RUNS BLOCKED pending acquisition of ambient thermometer.
+  Do NOT run paper-quality traces without it.
