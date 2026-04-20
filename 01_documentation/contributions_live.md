@@ -77,3 +77,23 @@ before moving on.
   decisions.
 - CALIBRATION RUNS BLOCKED pending acquisition of ambient thermometer.
   Do NOT run paper-quality traces without it.
+
+  ### 2026-04-19 evening (final update)
+- Practice 2-minute capture completed on Pi 5.
+  - 600/600 samples collected (completeness=1.0, sensor_failure_rate=0.0)
+  - All preflight checks passed (git clean, governor=ondemand, WiFi blocked,
+    sensors nominal)
+  - Verified CLI flags (--ambient-temp-c, --tags, --cooling) work correctly
+  - Run metadata: commit c229f66, temp_idle ~42°C, Pi 5 Model B Rev 1.1
+
+**Task 10 telemetry pipeline is CODE-COMPLETE and WORKFLOW-VALIDATED.**
+
+**BLOCKING ITEM for calibration runs:** Acquisition of ambient thermometer.
+  - Required accuracy: ±0.5°C
+  - Placement: within 1m of Pi, at surface height
+
+Once thermometer arrives:
+  1. Run 30-min idle calibration
+  2. Run 30-min stress calibration (YOLOv8n + thermal_benchmark_30fps.mp4)
+  3. Commit both run_metadata.json files
+  4. Proceed to Task 11 parameter tuning (EMA alpha, derivative stride)
