@@ -647,31 +647,56 @@ def _compute_trace_quality(
 
 
 if __name__ == "__main__":
-    # Smoke test: 30-second run into a real results directory (not tempfile
-    # so artifacts survive for inspection).
     import argparse
+    import json as _json
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--duration", type=float, default=30.0)
+    parser = argparse.ArgumentParser(
+        description="Run the 5 Hz telemetry pipeline and write raw CSV + metadata."
+    )
+    parser.add_argument("--duration", type=float, default=30.0,
+                        help="Sampling duration in seconds (default: 30)")
     parser.add_argument(
         "--run-dir",
         default=f"05_results/runs/{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_smoketest",
+        help="Directory for output CSV and metadata",
+    )
+    parser.add_argument("--ambient-temp-c", type=float, default=None,
+                        help="Measured ambient temperature in °C "
+                             "(required for paper-quality runs)")
+    parser.add_argument("--cooling", default="passive",
+                        choices=["passive", "active_fan", "active_heatsink", "unknown"],
+                        help="Cooling condition label")
+    parser.add_argument("--tags", default="{}",
+                        help='JSON string of arbitrary tags, e.g. '
+                             '\'{"workload":"idle","purpose":"calibration"}\'')
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Seed passed through to metadata")
+    parser.add_argument(
+        "--sampling-rate-hz", type=float, default=5.0,
+        help="Target sampling rate (default: 5 Hz per proposal §4)",
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    try:
+        tags = _json.loads(args.tags)
+    except _json.JSONDecodeError as e:
+        parser.error(f"--tags must be valid JSON: {e}")
+
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
 
     pipe = TelemetryPipeline(
         run_dir=args.run_dir,
-        sampling_rate_hz=5.0,
+        sampling_rate_hz=args.sampling_rate_hz,
         duration_sec=args.duration,
-        ambient_temp_c=25.0,
-        cooling_condition="passive",
-        tags={"purpose": "smoketest"},
-        seed=42,
+        ambient_temp_c=args.ambient_temp_c,
+        cooling_condition=args.cooling,
+        tags=tags,
+        seed=args.seed,
     )
     shared_start = pipe.start()
     print(f"Pipeline started; shared monotonic start = {shared_start:.6f}")
+    print(f"Run dir: {args.run_dir}")
     print(f"Sampling for {args.duration} s ...")
     time.sleep(args.duration + 1.0)
     pipe.stop()
@@ -688,8 +713,8 @@ if __name__ == "__main__":
 
     if meta_file.exists():
         with open(meta_file) as f:
-            meta = json.load(f)
+            meta = _json.load(f)
         print("\nTrace quality:")
-        print(json.dumps(meta.get("trace_quality", {}), indent=2))
+        print(_json.dumps(meta.get("trace_quality", {}), indent=2))
         print("\nFailure counts:")
-        print(json.dumps(meta.get("failure_counts", {}), indent=2))
+        print(_json.dumps(meta.get("failure_counts", {}), indent=2))
