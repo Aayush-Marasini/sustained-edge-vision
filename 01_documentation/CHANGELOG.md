@@ -7,7 +7,28 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [2026-04-19] Refactor: Port data_preparation scripts to common.paths
 
+### Changed
+- `03_code/data_preparation/class_distribution.py`: replaced hardcoded
+  LABEL_DIR with PROCESSED_YOLO_DIR from common.paths.
+- `03_code/data_preparation/verify_annotations.py`: replaced hardcoded
+  BASE_DIR with PROCESSED_YOLO_DIR and RESULTS_DIR from common.paths.
+- `03_code/data_preparation/split_train_images.py`: replaced all four
+  hardcoded path constants with RAW_DATASET_DIR, PROCESSED_YOLO_DIR,
+  VIDEOS_DIR from common.paths.
+- All three scripts: sys.path inserts parents[1] (03_code/) so the
+  common package is resolvable from any working directory.
+
+### Notes
+- No Silent Changes Rule: no logic changes. RANDOM_SEED=42, split ratios
+  (70/10/20), CLASSES list, and all file operations are identical.
+  No data, weights, or metrics were modified.
+- Smoke test: class_distribution.py confirmed correct output
+  (D00=61.51%, D10=29.70%, D20=7.61%, D40=1.17%) matching Progress Report.
+- Scripts now run on Windows (dev) and Linux/Pi (deploy) without
+  modification. RESEARCH_PROJECT_ROOT env-var override also supported.
+  
 ## [2026-04-18] Phase 2 Kickoff: Baseline Freeze and Restructure
 
 ### Added
