@@ -14,7 +14,9 @@ Last Updated: April 19, 2026
 - Signal-estimator math verified: `tests/test_derivatives.py` (8/8 pass) and
   `tests/test_scheduler_e2e.py` (end-to-end state vector produced correctly
   from mock telemetry).
-
+- Data preparation scripts (`verify_annotations.py`, `class_distribution.py`,
+  `split_train_images.py`) ported from hardcoded Windows paths to `common.paths`.
+  Verified cross-platform: smoke test output matches Progress Report Table II exactly.
 ## 2. What is partially implemented
 
 - **Task 10 — Telemetry Pipeline (code landed, on-Pi validation pending).**
