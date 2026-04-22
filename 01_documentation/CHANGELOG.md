@@ -7,6 +7,23 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [2026-04-21] Document OpenVINO Export Process
+
+### Added
+- `03_code/data_preparation/convert_baseline_to_openvino.py` — Documentation
+  of the exact export commands used to generate frozen FP32/FP16/INT8 models
+  on April 1, 2026. Records Ultralytics 8.4.7, OpenVINO 2026.0.0, NNCF 3.0.0,
+  Python 3.13.7, and full validation-set calibration for INT8.
+- `03_code/data_preparation/test_openvino_equivalence.py` — Functional
+  equivalence test (not part of frozen artifacts; local verification only).
+
+### Notes
+- Models were converted once on April 1, 2026 and frozen with SHA256 hashes.
+  Script is documentation-only per Baseline Freeze Rule.
+- INT8 calibration used full validation set (481 images, fraction=1.0) via
+  NNCF post-training quantization.
+- Satisfies WorkPlan §1.1 Reproducibility Rule for model export step.
+
 ## [2026-04-19] Refactor: Port data_preparation scripts to common.paths
 
 ### Changed
