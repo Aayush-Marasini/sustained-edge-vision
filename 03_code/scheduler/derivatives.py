@@ -50,8 +50,7 @@ v0.1 (2026-04-19): initial implementation following the design agreed
   in the Task 10/11 planning discussion.
 """
 
-from __future__ import annotations
-
+import math
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque, Dict, Optional, Tuple
@@ -137,7 +136,7 @@ class SignalEstimator:
 
 
 def _is_finite(x: float) -> bool:
-    return x == x and x not in (float("inf"), float("-inf"))
+    return math.isfinite(x)
 
 
 # -- State vector builder -----------------------------------------------------
