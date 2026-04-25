@@ -115,25 +115,55 @@ def main():
                             + "\n"
                         )
 
-    # 3. Stitch test set into 30 FPS benchmark video
+# 3. Stitch test set into 30 FPS benchmark video.
+    #
+    # Reproducibility note: the H.264/MPEG-4 encoder used by OpenCV's
+    # VideoWriter is platform-dependent (linked FFmpeg / system codecs),
+    # so two machines running this script on identical inputs may
+    # produce binary-different videos. The canonical benchmark video
+    # is therefore distributed as a frozen artifact in
+    # 00_frozen_artifacts/benchmark_workloads/ with its SHA256 hash
+    # recorded in SHA256SUMS.txt. This script documents the source
+    # frame ordering and FPS; it is not a bit-reproducible regenerator.
     test_imgs = sorted([
         OUTPUT_DIR / "test" / "images" / f"{n}.jpg"
         for n in subsets['test']
     ])
-    frame = cv2.imread(str(test_imgs[0]))
-    if frame is None:
+    if not test_imgs:
+        raise RuntimeError("No test images to stitch.")
+
+    first_frame = cv2.imread(str(test_imgs[0]))
+    if first_frame is None:
         raise RuntimeError(f"Could not read first test image: {test_imgs[0]}")
-    h_f, w_f, _ = frame.shape
+    h_f, w_f, _ = first_frame.shape
+
     out = cv2.VideoWriter(
         str(VIDEO_OUT),
         cv2.VideoWriter_fourcc(*'mp4v'),
         30,
         (w_f, h_f),
     )
+    if not out.isOpened():
+        raise RuntimeError(f"VideoWriter failed to open at {VIDEO_OUT}")
+
+    written = 0
     for img_path in tqdm(test_imgs, desc="Stitching video"):
-        out.write(cv2.imread(str(img_path)))
+        frame = cv2.imread(str(img_path))
+        if frame is None:
+            raise RuntimeError(f"Failed to read frame: {img_path}")
+        if frame.shape != (h_f, w_f, 3):
+            raise RuntimeError(
+                f"Frame shape mismatch at {img_path}: "
+                f"expected {(h_f, w_f, 3)}, got {frame.shape}"
+            )
+        out.write(frame)
+        written += 1
     out.release()
+
     print(f"\nPipeline complete. Benchmark video saved to: {VIDEO_OUT}")
+    print(f"  Frames written: {written}")
+    print(f"  Resolution    : {w_f}x{h_f}")
+    print(f"  FPS           : 30")
 
 
 if __name__ == "__main__":
