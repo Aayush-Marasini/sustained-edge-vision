@@ -27,8 +27,7 @@ from common.paths import (  # noqa: E402
 # ----------------------------------------------------------------------------
 
 # ============= CONFIGURATION =============
-RANDOM_SEED = 42
-random.seed(RANDOM_SEED)
+RANDOM_SEED = 42  # locks partition; do NOT change without invalidating frozen artifacts.
 
 CLASSES = ["D00", "D10", "D20", "D40"]
 
@@ -67,9 +66,12 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Reproducible sort & split
     all_files = sorted([f[:-4] for f in os.listdir(RAW_IMG_DIR) if f.endswith('.jpg')])
-    random.shuffle(all_files)
+    # Use a local RNG so import-time side effects cannot perturb the shuffle.
+    # Bit-identical to the global-seeded version when run from a clean interpreter,
+    # which is how the frozen partition was produced.
+    rng = random.Random(RANDOM_SEED)
+    rng.shuffle(all_files)
 
     train_end = int(len(all_files) * 0.7)
     val_end   = int(len(all_files) * 0.8)
