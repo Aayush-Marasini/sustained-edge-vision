@@ -4,5 +4,6 @@
   "reportMissingModuleSource": "none",
   "reportInvalidTypeForm": "none",
   "reportArgumentType": "none",
-  "reportOptionalMemberAccess": "none"
+  "reportOptionalMemberAccess": "none",
+  "reportPossiblyUnboundVariable": "none"
 }
