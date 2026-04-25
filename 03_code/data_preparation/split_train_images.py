@@ -96,7 +96,7 @@ def main():
                 size_el = root.find('size')
                 w = int(size_el.find('width').text)
                 h = int(size_el.find('height').text)
-                with open(lbl_out / f"{name}.txt", 'w' , encoding = "utf-8") as lf:
+                with open(lbl_out / f"{name}.txt", 'w', encoding="utf-8") as lf:
                     for obj in root.iter('object'):
                         cls = obj.find('name').text
                         if cls not in CLASSES:

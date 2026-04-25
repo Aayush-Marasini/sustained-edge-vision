@@ -614,8 +614,8 @@ def _pkg_version(name: str) -> Optional[str]:
 def _write_json_atomic(path: Path, data: Dict[str, Any]) -> None:
     """Write JSON via tmp + rename so partial writes are never visible."""
     tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(path, encoding = "utf-8") as f:
-        milli = int(f.read().strip())
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, default=str)
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)

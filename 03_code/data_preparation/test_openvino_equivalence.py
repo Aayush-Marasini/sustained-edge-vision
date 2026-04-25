@@ -102,11 +102,11 @@ def main():
         reconv_path = reconverted_base / f"openvino_{fmt}"
         
         if not frozen_path.exists():
-            print(f"  ✗ SKIP: Frozen model not found at {frozen_path}")
+            print(f"  [SKIP] Frozen model not found at {frozen_path}")
             continue
         
         if not reconv_path.exists():
-            print(f"  ✗ SKIP: Reconverted model not found at {reconv_path}")
+            print(f"  [SKIP] Reconverted model not found at {reconv_path}")
             print(f"    Run conversion script first to generate models in {reconverted_base}")
             continue
         
@@ -118,14 +118,14 @@ def main():
         is_equiv, max_diff = compare_results(frozen_results, reconv_results)
         
         if is_equiv:
-            print(f"  ✓ PASS: Models are functionally equivalent (max diff: {max_diff:.6f})")
+            print(f"  [PASS] Models are functionally equivalent (max diff: {max_diff:.6f})")
         else:
-            print(f"  ✗ FAIL: Models produce different outputs (max diff: {max_diff:.6f})")
+            print(f"  [FAIL] Models produce different outputs (max diff: {max_diff:.6f})")
             print(f"    This might indicate a version mismatch or calibration difference.")
     
     print("\n" + "=" * 70)
     print("Test complete. If all models passed, you can safely delete")
-    print(f"{reconverted_base} — frozen models are verified equivalent.")
+    print(f"{reconverted_base} -- frozen models are verified equivalent.")
     print("=" * 70)
 
 

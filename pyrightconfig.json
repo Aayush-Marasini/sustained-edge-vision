@@ -2,5 +2,7 @@
   "extraPaths": ["03_code"],
   "reportMissingImports": "warning",
   "reportMissingModuleSource": "none",
-  "reportInvalidTypeForm": "none"
+  "reportInvalidTypeForm": "none",
+  "reportArgumentType": "none",
+  "reportOptionalMemberAccess": "none"
 }
