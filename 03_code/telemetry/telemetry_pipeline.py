@@ -521,10 +521,17 @@ def _read_throttle(failures: _FailureCounters) -> Dict[str, Optional[int]]:
     }
 
 
-def _run(cmd) -> Optional[str]:
-    """Run a subprocess, returning stripped stdout or None on any failure."""
+def _run(cmd, timeout: float = 0.5) -> Optional[str]:
+    """
+    Run a subprocess, returning stripped stdout or None on any failure.
+
+    Default timeout is 500 ms -- well above typical vcgencmd response
+    (~5 ms) but well below the 200 ms sampling period * 2 = 400 ms
+    that would push the next sample's deadline. Metadata-collection
+    callers (git, hostname, etc.) override with a longer timeout.
+    """
     try:
-        return subprocess.check_output(cmd, text=True, timeout=1.0).strip()
+        return subprocess.check_output(cmd, text=True, timeout=timeout).strip()
     except (subprocess.SubprocessError, FileNotFoundError, OSError):
         return None
 
@@ -555,17 +562,17 @@ def _gather_session_metadata(
         "seed": seed,
         "tags": tags,
         "git": {
-            "sha": _run(["git", "rev-parse", "HEAD"]),
-            "branch": _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
+            "sha": _run(["git", "rev-parse", "HEAD"], timeout=2.0),
+            "branch": _run(["git", "rev-parse", "--abbrev-ref", "HEAD"], timeout=2.0),
             "dirty": _git_dirty(),
         },
         "hardware": {
-            "hostname": _run(["hostname"]),
+            "hostname": _run(["hostname"], timeout=2.0),
             "pi_model": _read_device_tree_model(),
-            "firmware": _run(["vcgencmd", "version"]),
-            "kernel": _run(["uname", "-a"]),
+            "firmware": _run(["vcgencmd", "version"], timeout=2.0),
+            "kernel": _run(["uname", "-a"], timeout=2.0),
             "cpu_governor": _read_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"),
-            "arm_freq_config": _run(["vcgencmd", "get_config", "arm_freq"]),
+            "arm_freq_config": _run(["vcgencmd", "get_config", "arm_freq"], timeout=2.0),
         },
         "software": {
             "python_version": sys.version,
@@ -577,7 +584,7 @@ def _gather_session_metadata(
 
 
 def _git_dirty() -> Optional[bool]:
-    out = _run(["git", "status", "--porcelain"])
+    out = _run(["git", "status", "--porcelain"], timeout=2.0)
     if out is None:
         return None
     return len(out) > 0
