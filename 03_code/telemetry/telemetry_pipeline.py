@@ -335,7 +335,7 @@ def _telemetry_worker_entry(
     sample_interval = 1.0 / sampling_rate_hz
     failures = _FailureCounters()
 
-    csv_file = open(csv_path, "w", newline="")
+    csv_file = open(csv_path, "w", newline="", encoding="utf-8")
     writer = csv.DictWriter(csv_file, fieldnames=_CSV_FIELDNAMES)
     writer.writeheader()
     csv_file.flush()
@@ -444,7 +444,7 @@ def _read_all_signals(psutil_mod: Any, failures: _FailureCounters) -> Dict[str, 
 def _read_temp(failures: _FailureCounters) -> Optional[float]:
     for path in _HWMON_TEMP_PATHS:
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 milli = int(f.read().strip())
                 return milli / 1000.0
         except (OSError, ValueError):
@@ -585,7 +585,7 @@ def _git_dirty() -> Optional[bool]:
 
 def _read_device_tree_model() -> Optional[str]:
     try:
-        with open("/proc/device-tree/model") as f:
+        with open("/proc/device-tree/model", encoding="utf-8") as f:
             # device-tree strings are null-terminated
             return f.read().rstrip("\x00").strip()
     except OSError:
@@ -594,7 +594,7 @@ def _read_device_tree_model() -> Optional[str]:
 
 def _read_file(path: str) -> Optional[str]:
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return f.read().strip()
     except OSError:
         return None
@@ -614,8 +614,8 @@ def _pkg_version(name: str) -> Optional[str]:
 def _write_json_atomic(path: Path, data: Dict[str, Any]) -> None:
     """Write JSON via tmp + rename so partial writes are never visible."""
     tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    with open(path, encoding = "utf-8") as f:
+        milli = int(f.read().strip())
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
@@ -709,14 +709,14 @@ if __name__ == "__main__":
     meta_file = Path(args.run_dir) / "run_metadata.json"
 
     if csv_file.exists():
-        with open(csv_file) as f:
+        with open(csv_file, encoding="utf-8") as f:
             lines = f.readlines()
         print(f"\nCollected {len(lines) - 1} data rows at {csv_file}")
         for line in lines[: min(6, len(lines))]:
             print("  " + line.rstrip())
 
     if meta_file.exists():
-        with open(meta_file) as f:
+        with open(meta_file, encoding="utf-8") as f:
             meta = _json.load(f)
         print("\nTrace quality:")
         print(_json.dumps(meta.get("trace_quality", {}), indent=2))

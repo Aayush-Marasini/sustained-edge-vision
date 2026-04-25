@@ -46,7 +46,7 @@ def read_yolo_label(label_path, img_width, img_height):
     if not os.path.exists(label_path):
         return boxes, class_ids
 
-    with open(label_path, 'r') as f:
+    with open(label_path, 'r', encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split()
             if len(parts) != 5:

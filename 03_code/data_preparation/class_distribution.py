@@ -36,7 +36,7 @@ def check_distribution():
         raise RuntimeError(f"No .txt label files found in {LABEL_DIR}")
 
     for file in label_files:
-        with open(LABEL_DIR / file, 'r') as f:
+        with open(LABEL_DIR / file, 'r', encoding="utf-8") as f:
             for line in f:
                 parts = line.strip().split()
                 if parts:

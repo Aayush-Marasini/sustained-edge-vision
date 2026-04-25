@@ -179,11 +179,11 @@ def _scheduler_worker_entry(
 
     builder = StateVectorBuilder()
 
-    derived_file = open(derived_path, "w", newline="")
+    derived_file = open(derived_path, "w", newline="", encoding="utf-8")
     derived_writer = csv.DictWriter(derived_file, fieldnames=_DERIVED_FIELDNAMES)
     derived_writer.writeheader()
 
-    decisions_file = open(decisions_path, "w", newline="")
+    decisions_file = open(decisions_path, "w", newline="", encoding="utf-8")
     decisions_writer = csv.DictWriter(decisions_file, fieldnames=_DECISION_FIELDNAMES)
     decisions_writer.writeheader()
 
