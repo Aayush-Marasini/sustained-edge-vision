@@ -91,11 +91,24 @@ class SchedulerRuntime:
         run_dir: str,
         telemetry_queue: mp.Queue,
         flush_every_n_samples: int = 10,
+        shared_start_monotonic: float = 0.0,
     ):
+        """
+        shared_start_monotonic : float
+            The telemetry pipeline's monotonic-clock start reference
+            (from TelemetryPipeline.shared_start_monotonic). All
+            'monotonic_offset_s' values in scheduler_decisions.csv will
+            be expressed relative to this anchor, so the four per-run
+            CSVs (telemetry_raw, telemetry_derived, scheduler_decisions,
+            inference_events) share a common time base. If 0.0, the
+            scheduler will fall back to its own time origin (degraded;
+            only acceptable for unit tests).
+        """
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.telemetry_queue = telemetry_queue
         self.flush_every_n_samples = flush_every_n_samples
+        self.shared_start_monotonic = shared_start_monotonic
 
         self.derived_csv_path = self.run_dir / "telemetry_derived.csv"
         self.decisions_csv_path = self.run_dir / "scheduler_decisions.csv"
@@ -116,6 +129,7 @@ class SchedulerRuntime:
                 self.telemetry_queue,
                 self._stop_event,
                 self.flush_every_n_samples,
+                self.shared_start_monotonic,
             ),
             daemon=False,
             name="scheduler_runtime",
@@ -150,6 +164,7 @@ def _scheduler_worker_entry(
     telemetry_queue: mp.Queue,
     stop_event: mp.Event,
     flush_every_n_samples: int,
+    shared_start_monotonic: float,
 ) -> None:
     """Worker entry point: drain queue, compute derivatives, log both files."""
 
@@ -173,10 +188,17 @@ def _scheduler_worker_entry(
     decisions_writer.writeheader()
 
     # Log the initial (default) configuration so the decisions CSV always
-    # has an entry at t=0.
+    # has an entry near t=0. Use telemetry's shared monotonic reference
+    # if provided, so this row aligns with telemetry_raw.csv. If the
+    # caller did not supply one (degraded mode, e.g. unit tests), fall
+    # back to a 0.0 offset and a UTC timestamp.
+    if shared_start_monotonic > 0.0:
+        boot_offset = round(time.monotonic() - shared_start_monotonic, 6)
+    else:
+        boot_offset = 0.0
     _write_decision(
         decisions_writer,
-        monotonic_offset_s=0.0,
+        monotonic_offset_s=boot_offset,
         utc_timestamp=datetime.now(timezone.utc).isoformat(),
         config=_DEFAULT_CONFIG,
         reason="runtime_start_default",

@@ -24,7 +24,14 @@ def main():
     run_dir.mkdir(parents=True)
 
     q = mp.Queue(maxsize=100)
-    sched = SchedulerRuntime(run_dir=str(run_dir), telemetry_queue=q)
+    # Test-only: pass a synthetic shared_start_monotonic so the
+    # boot-decision row exercises the aligned-offset code path.
+    test_start = time.monotonic()
+    sched = SchedulerRuntime(
+        run_dir=str(run_dir),
+        telemetry_queue=q,
+        shared_start_monotonic=test_start,
+    )
     sched.start()
 
     # Feed 50 mock samples simulating a thermal ramp.
