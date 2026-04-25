@@ -110,6 +110,31 @@ def test_invalid_alpha_raises():
     else:
         raise AssertionError("expected ValueError for alpha>1")
 
+def test_ema_step_response_matches_documented_time_constant():
+    """
+    Verify the docstring claim: tau ~= dt * (1 - alpha) / alpha.
+    Feed a step input and check that the smoothed signal reaches
+    (1 - 1/e) ~= 63.2% of the step within tau seconds.
+    """
+    alpha = 0.20
+    dt = 0.2
+    est = SignalEstimator(alpha=alpha, derivative_stride=5, dt=dt)
+    # Initialize at 0
+    est.update(0.0)
+    # Documented time constant.
+    tau = dt * (1.0 - alpha) / alpha  # = 0.8 s for alpha=0.20, dt=0.2
+    n_samples_to_tau = int(round(tau / dt))  # 4 samples after the step
+    # Apply step of magnitude 100.
+    step_value = 100.0
+    smoothed = None
+    for _ in range(n_samples_to_tau):
+        smoothed, _ = est.update(step_value)
+    # Allow generous tolerance (geometric series vs continuous-time
+    # exponential differ slightly at small sample counts).
+    assert smoothed is not None
+    assert 0.50 * step_value < smoothed < 0.75 * step_value, (
+        f"EMA step response at t=tau should be near 63%, got {smoothed:.1f}"
+    )
 
 if __name__ == "__main__":
     tests = [
@@ -121,6 +146,8 @@ if __name__ == "__main__":
         ("state_vector_builder_shape", test_state_vector_builder_shape),
         ("state_vector_builder_accepts_both_column_forms", test_state_vector_builder_accepts_both_column_forms),
         ("invalid_alpha_raises", test_invalid_alpha_raises),
+        ("ema_step_response_matches_documented_time_constant",
+         test_ema_step_response_matches_documented_time_constant),
     ]
     failed = 0
     for name, fn in tests:
