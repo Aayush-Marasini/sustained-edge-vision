@@ -258,7 +258,11 @@ _CSV_FIELDNAMES = [
 
 @dataclass
 class _FailureCounters:
-    """Per-signal consecutive failure counter for trace-quality reporting."""
+    """Per-signal cumulative failure counter for trace-quality reporting.
+    Each field counts the total number of failed reads for that signal
+    over the lifetime of the telemetry session (not consecutive).
+    Used by _compute_trace_quality() to report sensor_failure_rate as
+    total_failures / (samples_collected * n_signals)"""
     temp_soc: int = 0
     volt_core: int = 0
     cpu_util: int = 0
