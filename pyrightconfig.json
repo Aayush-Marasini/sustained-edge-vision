@@ -1,0 +1,5 @@
+{
+  "extraPaths": ["03_code"],
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none"
+}
