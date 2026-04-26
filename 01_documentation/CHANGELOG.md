@@ -8,6 +8,53 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.4] — 2026-04-26
+
+### Phase B Calibration Data Collection Complete
+- Collected 4 paper-quality calibration traces at ambient ~22.8-23.5 C:
+  - 2x idle, passive cooling, 30 min each (9000 samples per run)
+  - 2x stress-ng (4 cores, matrixprod), passive cooling, 30 min each
+- All runs achieve completeness >= 1.0001 with sensor_failure_rate 0.0
+  and scheduler_queue_drop_count 0.
+- DHT11 ambient logged at run start and end for every run.
+- Power consumption recorded via PowerZ KM003C for all 4 runs (.db
+  SQLite format, stored in 05_results/power_data/ on Windows).
+
+### Notes
+- Run 2 (idle) was first attempted on 2026-04-26 00:30 but aborted
+  due to PowerZ software crash; re-run successfully at 13:53.
+- Stress run 1 was first attempted on 2026-04-26 14:29 but aborted
+  due to user error (PowerZ closed); re-run successfully at 15:14.
+- stress_passive_run2 first sample shows throttle_raw=917504 (history
+  bits set from earlier session); throttled_now and undervolt_now both
+  remained 0 throughout the run, so calibration data is unaffected.
+
+### Power Data Schema (PowerZ KM003C)
+- Format: SQLite .db, 2 tables (table_1 and table_1_param)
+- table_1: time-series data with columns ElapsedTime, Unix, VBUS, IBUS,
+  DP, DM, CC1, CC2, TEMP, CHARGE, ENERGY
+- table_1_param: metadata with start time (Unix epoch) and sampling rate
+- Sampling: ~1ms granularity (~2M rows per 30min run = ~1100 Hz effective)
+- Sync to Pi telemetry via Unix epoch timestamps in run_metadata.json
+  (start_time_utc, end_time_utc fields)
+
+### Calibration Run Inventory
+| Run | Date | Workload | Cooling | Ambient (C) | Samples |
+|-----|------|----------|---------|-------------|---------|
+| idle_run1 | 2026-04-25 23:45 | idle | passive | 22.7-22.8 | 9000 |
+| idle_run2 | 2026-04-26 13:53 | idle | passive | 22.9 | 9000 |
+| stress_run1 | 2026-04-26 15:14 | stress-ng matrixprod 4cpu | passive | 23.4-23.6 | 9000 |
+| stress_run2 | 2026-04-26 15:56 | stress-ng matrixprod 4cpu | passive | 22.7-22.9 | 9000 |
+
+### Next: EMA Parameter Tuning (Phase B.5)
+- Sweep alpha in {0.1, 0.15, 0.2, 0.25, 0.3} and derivative_stride
+  in {3, 5, 7, 10} on the 4 calibration traces.
+- Selection criterion: minimize derivative noise variance (during steady
+  states) subject to step-response lag <= 2 seconds (during stress->idle
+  transition tail of stress runs).
+- Tuned values committed to derivatives.py DEFAULT_CONFIG_5HZ.
+
+
 ## [v0.3] — 2026-04-26
 
 ### Summary

@@ -3,7 +3,12 @@
 Last Updated: April 19, 2026
 
 ## 1. What is already proven
-
+- **[v0.4] Phase B calibration data collected**: 4 paper-quality 30-min
+  runs at 22.7-23.6 C ambient (2x idle + 2x stress-ng matrixprod, all
+  passive cooling). All achieve completeness >= 1.0001 with
+  sensor_failure_rate 0.0. Power consumption recorded via PowerZ KM003C
+  for all 4 runs. Total data: 36000 telemetry samples + ~8M power samples.
+  Ready for EMA parameter tuning.
 - Established a baseline reproducible training pipeline for the YOLOv8n model.
 - Empirically demonstrated the thermal throttling problem on the Raspberry
   Pi 5 under passive cooling conditions.
@@ -31,48 +36,27 @@ Last Updated: April 19, 2026
   Severity 1/2/3 reviewer-facing risks identified in pre-submission code audit.
   Tests stable at 9/9 (derivatives) + e2e PASSED on both Windows and Pi.
 
-## 2. What is partially implemented
+### In Flight
+- **Phase B.5**: EMA parameter tuning. Write `tune_ema_parameters.py`
+  to sweep alpha and derivative_stride against the 4 calibration traces.
+  Output: updated DEFAULT_CONFIG_5HZ in derivatives.py with empirically
+  justified values + tuning_report.md documenting the sweep methodology
+  and selection criterion.
 
-- **Task 10 — Telemetry Pipeline (code landed, on-Pi validation pending).**
-  `03_code/telemetry/telemetry_pipeline.py` v0.2 implements the 5 Hz
-  sampler for T, V, CPU util, mem util, CPU freq, and throttle flags with
-  correct bit masking. Signal source documentation in `TELEMETRY.md`.
-  Still needed: 30-second on-Pi smoketest to confirm sensor access, then
-  30-minute idle and 30-minute stress calibration traces.
-- **Task 11 — State Representation (code landed, tuning pending).**
-  `03_code/scheduler/derivatives.py` implements causal EMA + stride-k
-  backward finite difference producing the proposal §4 state vector.
-  Default parameters are defensible starting points; final alpha and
-  stride values will be tuned against the Task 10 calibration traces
-  and documented in the paper §III.B.
-- **Scheduler runtime plumbing.** `scheduler_runtime.py` drains the
-  telemetry queue and writes `telemetry_derived.csv` and
-  `scheduler_decisions.csv`. Decision logic is a no-op placeholder.
-- Conceptual design of the proactive state-aware scheduler utilizing
-  multi-modal, derivative-based telemetry.
-- Conceptual design and proposed trigger logic for the bounded-cost
-  High-Confidence Confirmation (HCC) mechanism.
-  - **[2026-04-26] Phase B: Calibration runs** — Next: two 30-minute runs at
-  22 °C ambient (idle + stress-ng), passive cooling. Purpose: tune EMA alpha
-  and derivative_stride for the scheduler state vector.
-
-## 3. What is not yet validated
-
-- Phase C: Workload video curation (moderate + realistic videos)
-- Phase D: Baseline experiment runs (36-cell matrix × 3 repetitions)
-- Inference runtime (run_experiment.py) — needed before baseline runs
-- Scheduler logic implementation (Task 18 in WorkPlan)
-- Analysis scripts and figure generation (Tasks 19/20)
-- HCC mechanism implementation (proposal §4.3)
-
-## Next action
-
-Copy the three new Python modules and `TELEMETRY.md` to the Pi, run
-`python -m telemetry.telemetry_pipeline --duration 30` as a smoketest,
-and inspect the generated `run_metadata.json` for `trace_quality`.
-If `completeness >= 0.99` and `sensor_failure_rate == 0`, proceed to
-the 30-minute calibration runs. If not, triage the failing signal
-before moving on.
+### What Is NOT Yet Started
+- **Phase C**: Workload video curation (moderate + realistic from CC sources).
+- **Phase D**: Inference runtime (`run_experiment.py`) with OpenVINO model
+  swap. Required before any baseline runs.
+- **Phase D**: Baseline runs (36-cell strategic matrix, 3 reps each).
+- **Phase D**: HCC mechanism implementation (mathematical control logic).
+- **Phase D**: Scheduler decision logic beyond static config.
+- **Phase D**: PowerZ SQLite reader script (sync power data with telemetry
+  CSVs via Unix epoch timestamps).
+- **Phase D**: Analysis scripts and figure generation.
+- **Phase D**: HCC stability proof (per IoT-J reviewer expectations re:
+  control thrashing at thermal boundaries).
+- **Phase D**: Overhead profiling (scheduler CPU/latency cost isolation).
+- **Phase E**: Paper drafting against IoT-J template (Impact Factor ~10.6).
 
 ## Progress log
 
