@@ -62,3 +62,7 @@ Output lands in `run_metadata.json` under `ambient_dht11_start` and
 | v4 (thread fix) | 300/299 | 1.003 | 22.4 °C / 61.3% RH | 22.6 °C / 60.7% RH |
 
 v4 is the production-ready configuration.
+
+## Paper Citation
+Sensor accuracy per Aosong DHT11 datasheet (AOSONG Electronics Co. Ltd,
+Product Manual DHT11, 2023).
