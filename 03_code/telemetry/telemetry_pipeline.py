@@ -139,7 +139,22 @@ class TelemetryPipeline:
         tags: Optional[Dict[str, Any]] = None,
         scheduler_queue: Optional[mp.Queue] = None,
         seed: Optional[int] = None,
+        dht11_pin: Optional[int] = None,
     ):
+        """
+        ambient_temp_c : float, optional
+            Manually-measured ambient at run start. If provided, recorded
+            in metadata as 'ambient_temp_c_manual'. Required for paper-
+            quality runs even if dht11_pin is set, as a sanity check
+            against the DHT11.
+        dht11_pin : int, optional
+            BCM GPIO pin number for an attached DHT11 sensor. If provided,
+            the worker measures ambient at run start and again at run end
+            (3 retries each, average of successful reads). Results recorded
+            in metadata as 'ambient_dht11_start' and 'ambient_dht11_end'.
+            DHT11 is a +/- 2 C sensor; values are for reproducibility
+            logging only and MUST NOT feed the scheduler.
+        """
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -151,6 +166,7 @@ class TelemetryPipeline:
         self.cooling_condition = cooling_condition
         self.tags = dict(tags) if tags else {}
         self.scheduler_queue = scheduler_queue
+        self.dht11_pin = dht11_pin
         self.seed = seed
 
         self.csv_path = self.run_dir / "telemetry_raw.csv"
@@ -192,6 +208,7 @@ class TelemetryPipeline:
                 self.tags,
                 self.scheduler_queue,
                 self.seed,
+                self.dht11_pin,
             ),
             daemon=False,
             name="telemetry_worker",
@@ -289,13 +306,14 @@ def _telemetry_worker_entry(
     partial_metadata_path_str: str,
     sampling_rate_hz: float,
     duration_sec: Optional[float],
-    stop_event: mp.Event,
-    shared_start_monotonic: mp.Value,
+    stop_event,
+    shared_start_monotonic,
     ambient_temp_c: Optional[float],
     cooling_condition: str,
     tags: Dict[str, Any],
     scheduler_queue: Optional[mp.Queue],
     seed: Optional[int],
+    dht11_pin: Optional[int],
 ) -> None:
     """Worker process entry point. Runs the sampling loop until stop."""
 
@@ -320,6 +338,12 @@ def _telemetry_worker_entry(
         tags=tags,
         seed=seed,
     )
+    session_meta["dht11_pin"] = dht11_pin
+    if dht11_pin is not None:
+        log.info("Reading DHT11 ambient at run start (BCM pin %d)...", dht11_pin)
+        session_meta["ambient_dht11_start"] = _read_dht11_averaged(dht11_pin)
+    else:
+        session_meta["ambient_dht11_start"] = None
     _write_json_atomic(partial_metadata_path, session_meta)
 
     # psutil warmup: first cpu_percent(None) call returns 0.0 because
@@ -392,6 +416,11 @@ def _telemetry_worker_entry(
 
         session_meta["end_time_utc"] = datetime.now(timezone.utc).isoformat()
         session_meta["samples_collected"] = sample_index
+        if dht11_pin is not None:
+            log.info("Reading DHT11 ambient at run end (BCM pin %d)...", dht11_pin)
+            session_meta["ambient_dht11_end"] = _read_dht11_averaged(dht11_pin)
+        else:
+            session_meta["ambient_dht11_end"] = None
         expected_samples = (
             int(duration_sec * sampling_rate_hz) if duration_sec is not None else None
         )
@@ -440,6 +469,80 @@ def _read_all_signals(psutil_mod: Any, failures: _FailureCounters) -> Dict[str, 
         **_read_throttle(failures),
     }
 
+def _read_dht11_averaged(pin_bcm: int, n_reads: int = 3, max_attempts: int = 8) -> Optional[Dict[str, Any]]:
+    """
+    Read DHT11 ambient temperature and humidity, averaged over n_reads
+    successful samples. Returns None if the library is unavailable, the
+    sensor never responds, or all attempts fail. DHT11 hardware limit:
+    >= 2 s between reads.
+
+    Returns dict with keys: temperature_c, humidity_percent, n_successful,
+    n_attempts, sensor, accuracy_note. DHT11 has +/- 2 C accuracy and
+    1 C resolution; this value is for reproducibility logging only and
+    must NOT feed the scheduler state vector.
+    """
+    try:
+        import board
+        import adafruit_dht
+    except ImportError:
+        log.warning("DHT11 library not available; skipping ambient read")
+        return None
+
+    pin_attr = f"D{pin_bcm}"
+    if not hasattr(board, pin_attr):
+        log.warning("Invalid DHT11 BCM pin %s", pin_bcm)
+        return None
+    pin_obj = getattr(board, pin_attr)
+
+    try:
+        dht = adafruit_dht.DHT11(pin_obj, use_pulseio=False)
+    except Exception as e:
+        log.warning("DHT11 init failed: %s", e)
+        return None
+
+    temps = []
+    hums = []
+    attempts = 0
+    while len(temps) < n_reads and attempts < max_attempts:
+        attempts += 1
+        try:
+            t = dht.temperature
+            h = dht.humidity
+            if t is not None and h is not None:
+                temps.append(float(t))
+                hums.append(float(h))
+        except RuntimeError:
+            # DHT11 checksum/timing errors are common; just retry.
+            pass
+        except Exception as e:
+            log.warning("DHT11 unexpected error: %s", e)
+            break
+        if len(temps) < n_reads and attempts < max_attempts:
+            time.sleep(2.2)  # >= 2 s between reads per datasheet
+
+    try:
+        dht.exit()
+    except Exception:
+        pass
+
+    if not temps:
+        return {
+            "temperature_c": None,
+            "humidity_percent": None,
+            "n_successful": 0,
+            "n_attempts": attempts,
+            "sensor": "DHT11",
+            "accuracy_note": "+/- 2 C, 1 C resolution; logging only, do not feed scheduler",
+        }
+
+    return {
+        "temperature_c": round(sum(temps) / len(temps), 1),
+        "humidity_percent": round(sum(hums) / len(hums), 1),
+        "n_successful": len(temps),
+        "n_attempts": attempts,
+        "sensor": "DHT11",
+        "accuracy_note": "+/- 2 C, 1 C resolution; logging only, do not feed scheduler",
+    }
 
 def _read_temp(failures: _FailureCounters) -> Optional[float]:
     for path in _HWMON_TEMP_PATHS:
@@ -686,6 +789,11 @@ if __name__ == "__main__":
         "--sampling-rate-hz", type=float, default=5.0,
         help="Target sampling rate (default: 5 Hz per proposal §4)",
     )
+    parser.add_argument(
+        "--dht11-pin", type=int, default=None,
+        help="BCM GPIO pin for DHT11 ambient sensor (e.g. 4). "
+             "If omitted, no DHT11 read is attempted.",
+    )
     args = parser.parse_args()
 
     try:
@@ -704,6 +812,7 @@ if __name__ == "__main__":
         cooling_condition=args.cooling,
         tags=tags,
         seed=args.seed,
+        dht11_pin=args.dht11_pin,
     )
     shared_start = pipe.start()
     print(f"Pipeline started; shared monotonic start = {shared_start:.6f}")
