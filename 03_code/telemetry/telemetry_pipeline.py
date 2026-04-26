@@ -86,6 +86,7 @@ import os
 import queue as queue_mod
 import signal
 import subprocess
+import threading
 import sys
 import time
 from dataclasses import dataclass, field
@@ -333,50 +334,60 @@ def _telemetry_worker_entry(
     metadata_path = Path(metadata_path_str)
     partial_metadata_path = Path(partial_metadata_path_str)
 
-    # Gather session metadata BEFORE sampling starts, write partial file
-    # immediately so a crashed run still has context.
-    session_meta = _gather_session_metadata(
-        csv_path=csv_path,
-        sampling_rate_hz=sampling_rate_hz,
-        duration_sec=duration_sec,
-        ambient_temp_c=ambient_temp_c,
-        cooling_condition=cooling_condition,
-        tags=tags,
-        seed=seed,
-    )
-    session_meta["dht11_pin"] = dht11_pin
-    if dht11_pin is not None:
-        log.info("Reading DHT11 ambient at run start (BCM pin %d)...", dht11_pin)
-        session_meta["ambient_dht11_start"] = _read_dht11_averaged(dht11_pin)
-    else:
-        session_meta["ambient_dht11_start"] = None
-    _write_json_atomic(partial_metadata_path, session_meta)
-
-    # psutil warmup: first cpu_percent(None) call returns 0.0 because
-    # there is no prior reference. Fire a throwaway so the first real
-    # sample is valid.
+# --- Fast path to sampling start ---
+    # Open CSV and start the monotonic clock FIRST so duration_sec is
+    # accurately honoured. Metadata gathering (git, vcgencmd, DHT11 start
+    # read) runs concurrently in a background thread so it does not eat
+    # into the sampling window. The partial metadata file is written as
+    # soon as the background thread finishes, giving crash-recovery context
+    # within a few seconds of run start.
     try:
         import psutil  # imported here so the main process is not forced to have it
-        psutil.cpu_percent(interval=None)
+        psutil.cpu_percent(interval=None)  # warmup throwaway
     except ImportError:
         log.warning("psutil not available; cpu_util and mem_util will be None")
         psutil = None  # type: ignore
 
     sample_interval = 1.0 / sampling_rate_hz
     failures = _FailureCounters()
-
     csv_file = open(csv_path, "w", newline="", encoding="utf-8")
     writer = csv.DictWriter(csv_file, fieldnames=_CSV_FIELDNAMES)
     writer.writeheader()
     csv_file.flush()
 
-    # Record the start-of-sampling monotonic reference. Everything after
-    # this uses absolute deadlines against this anchor, so sleep jitter
-    # does not accumulate over long runs.
+    # Start the clock and signal the parent immediately.
     start_monotonic = time.monotonic()
     shared_start_monotonic.value = start_monotonic
-
     sample_index = 0
+
+    # Background thread: gather metadata + DHT11 start read concurrently
+    # with the first few seconds of sampling.
+    session_meta: Dict[str, Any] = {}
+    _meta_ready = threading.Event()
+
+    def _gather_meta_bg():
+        meta = _gather_session_metadata(
+            csv_path=csv_path,
+            sampling_rate_hz=sampling_rate_hz,
+            duration_sec=duration_sec,
+            ambient_temp_c=ambient_temp_c,
+            cooling_condition=cooling_condition,
+            tags=tags,
+            seed=seed,
+        )
+        meta["dht11_pin"] = dht11_pin
+        if dht11_pin is not None:
+            log.info("Reading DHT11 ambient at run start (BCM pin %d)...", dht11_pin)
+            meta["ambient_dht11_start"] = _read_dht11_averaged(dht11_pin)
+        else:
+            meta["ambient_dht11_start"] = None
+        session_meta.update(meta)
+        _write_json_atomic(partial_metadata_path, session_meta)
+        _meta_ready.set()
+        log.info("Session metadata ready (elapsed %.1fs)", time.monotonic() - start_monotonic)
+
+    _meta_thread = threading.Thread(target=_gather_meta_bg, daemon=True, name="meta_bg")
+    _meta_thread.start()
     _BUSY_WAIT_THRESHOLD = 0.015  # switch to busy-wait for final 15ms of each tick
     try:
         while not stop_event.is_set():
@@ -422,6 +433,11 @@ def _telemetry_worker_entry(
     finally:
         csv_file.flush()
         csv_file.close()
+
+        # Ensure background metadata thread has finished before we write
+        # the final metadata. In normal runs this completed long ago.
+        if not _meta_ready.wait(timeout=15.0):
+            log.warning("Metadata background thread did not complete in 15s")
 
         session_meta["end_time_utc"] = datetime.now(timezone.utc).isoformat()
         session_meta["samples_collected"] = sample_index
