@@ -224,21 +224,27 @@ class TelemetryPipeline:
         return float(self._shared_start_monotonic.value)
 
     def stop(self, timeout: float = 5.0) -> None:
-        """Stop the telemetry subprocess gracefully."""
-        if self._process is None:
-            return
+        """Signal the worker to stop and wait for it to finish.
 
-        self._stop_event.set()
-        self._process.join(timeout=timeout)
-
-        if self._process.is_alive():
-            log.warning("telemetry worker did not exit cleanly, terminating")
-            self._process.terminate()
-            self._process.join(timeout=1.0)
+        If a DHT11 pin is configured, the worker performs a final ambient
+        read during shutdown (up to 3 reads x 2.2 s = 6.6 s). The join
+        timeout is automatically extended to accommodate this so the worker
+        is not killed mid-cleanup.
+        """
+        if self._stop_event is not None:
+            self._stop_event.set()
+        if self._process is not None and self._process.is_alive():
+            # Add headroom for DHT11 end-of-run read if sensor is active.
+            dht11_overhead = 8.0 if self.dht11_pin is not None else 0.0
+            effective_timeout = timeout + dht11_overhead
+            self._process.join(timeout=effective_timeout)
             if self._process.is_alive():
-                log.error("telemetry worker did not respond to SIGTERM, killing")
-                self._process.kill()
-                self._process.join()
+                log.warning("telemetry worker did not exit cleanly, terminating")
+                self._process.terminate()
+                self._process.join(timeout=1.0)
+                if self._process.is_alive():
+                    self._process.kill()
+                    self._process.join()
 
         self._process = None
 
