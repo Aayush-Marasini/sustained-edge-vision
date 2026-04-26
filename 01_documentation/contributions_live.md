@@ -17,6 +17,20 @@ Last Updated: April 19, 2026
 - Data preparation scripts (`verify_annotations.py`, `class_distribution.py`,
   `split_train_images.py`) ported from hardcoded Windows paths to `common.paths`.
   Verified cross-platform: smoke test output matches Progress Report Table II exactly.
+  - **[2026-04-26] Telemetry pipeline completeness ≥ 0.99 on Pi 5**: Integration
+  test v4 confirmed 300/300 samples (completeness 1.003) at 5 Hz over 60s with
+  DHT11 active. Timing fix: metadata gathering moved to background thread,
+  start_monotonic set within ~50ms of worker spawn.
+
+- **[2026-04-26] DHT11 ambient sensor integrated and verified**: Sensor wired
+  (BCM 4, 3.3V), library stack installed (liblgpio-dev + adafruit-circuitpython-
+  dht 4.0.12), smoketest passed 5/5 reads at 22.3 °C / 61% RH. Ambient logged
+  at run start/end in run_metadata.json for every paper-quality run.
+
+- **[2026-04-26] Full audit pass complete**: 17 commits addressing all
+  Severity 1/2/3 reviewer-facing risks identified in pre-submission code audit.
+  Tests stable at 9/9 (derivatives) + e2e PASSED on both Windows and Pi.
+
 ## 2. What is partially implemented
 
 - **Task 10 — Telemetry Pipeline (code landed, on-Pi validation pending).**
@@ -38,25 +52,18 @@ Last Updated: April 19, 2026
   multi-modal, derivative-based telemetry.
 - Conceptual design and proposed trigger logic for the bounded-cost
   High-Confidence Confirmation (HCC) mechanism.
+  - **[2026-04-26] Phase B: Calibration runs** — Next: two 30-minute runs at
+  22 °C ambient (idle + stress-ng), passive cooling. Purpose: tune EMA alpha
+  and derivative_stride for the scheduler state vector.
 
 ## 3. What is not yet validated
 
-- **Task 10 on-Pi validation.** Smoketest + calibration traces.
-- **Task 11 parameter tuning.** EMA alpha and derivative stride values
-  against real Pi traces; stability under idle and stress per §6.3.
-- **Task 9 — Configuration Space.** Resolution/precision/frame-rate
-  options enumerated and verified stable on the Pi.
-- **Task 12 — Decision Policy.** The proposal §5 cost function
-  `c*(t) = arg min (alpha*E + beta*(1-A) + Phi)` with hysteresis and
-  dwell-time safeguards.
-- **Task 13 — HCC implementation.**
-- **Task 14 — System overview figure.**
-- A finalized, validated contribution statement (after scheduler experiments).
-- The execution of long-horizon experimental evaluations on the
-  Raspberry Pi 5.
-- A full comparative evaluation of the proactive scheduler against
-  static and reactive baselines (Static-Max, Static-Min, reactive
-  thermal-threshold, utilization-based reactive).
+- Phase C: Workload video curation (moderate + realistic videos)
+- Phase D: Baseline experiment runs (36-cell matrix × 3 repetitions)
+- Inference runtime (run_experiment.py) — needed before baseline runs
+- Scheduler logic implementation (Task 18 in WorkPlan)
+- Analysis scripts and figure generation (Tasks 19/20)
+- HCC mechanism implementation (proposal §4.3)
 
 ## Next action
 

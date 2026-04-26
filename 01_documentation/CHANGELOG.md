@@ -7,6 +7,81 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+
+## [v0.3] — 2026-04-26
+
+### Summary
+Full code audit pass (14 commits) addressing IEEE Transactions reviewer-facing
+risks, plus DHT11 ambient sensor hardware integration verified on Pi 5.
+
+### Audit Fixes — Severity 1 (Disqualifying)
+- **S1.1**: `generate_partition_manifest.py` ported from hardcoded Windows path
+  to `common.paths`. UTC timestamps. Existing frozen manifests unaffected.
+- **S1.2**: Video stitching script hardened: explicit None-check on every frame
+  read, frame-shape consistency check, VideoWriter.isOpened() guard, comment
+  clarifying codec non-determinism. Canonical video remains the frozen artifact.
+
+### Audit Fixes — Severity 2 (Will Be Questioned)
+- **S2.1**: `SchedulerRuntime` now accepts `shared_start_monotonic` so the
+  boot-decision row in `scheduler_decisions.csv` shares the telemetry monotonic
+  reference. All four per-run CSVs now have a common time base.
+- **S2.2**: `split_train_images.py` uses a local `random.Random(42)` instance
+  instead of module-level `random.seed()`. Bit-identical to the previous run;
+  eliminates latent import-order hazard. Frozen partition (SHA256-locked)
+  remains valid.
+- **S2.4 / N2.4**: `preflight_check.py` fully hardened for non-Pi hosts.
+  All sensor reads wrapped in try/except; non-Pi hosts receive SKIP not
+  tracebacks. Empty rfkill output treated as "no wifi device" (PASS).
+- **S2.5**: `_FailureCounters` docstring corrected from "consecutive" to
+  "cumulative". Behavior unchanged.
+
+### Audit Fixes — Severity 3 / New Findings
+- **S3.1**: All text-mode `open()` calls now carry `encoding="utf-8"` across
+  telemetry, scheduler, data_preparation, and tests.
+- **S3.2**: `_is_finite()` in `derivatives.py` replaced with `math.isfinite()`.
+- **N2.4**: Preflight check robust to Pi boards without wifi hardware.
+- **N3.2**: `_run()` subprocess timeout tightened from 1.0s to 0.5s for
+  per-sample vcgencmd calls. Metadata-gathering calls explicitly override
+  with 2.0s.
+- **N3.3**: New test `test_ema_step_response_matches_documented_time_constant`
+  empirically verifies the tau = dt*(1-alpha)/alpha claim in §III.B.
+
+### Tooling
+- `pyrightconfig.json` added: suppresses false-positive Pylance warnings for
+  Optional mp.Value accesses and xml.etree.ElementTree None-safety patterns.
+- `reportPossiblyUnboundVariable` suppressed for loop-body variables where
+  loop count is statically known.
+
+### DHT11 Ambient Sensor Integration
+- `03_code/telemetry/dht11_smoketest.py`: standalone hardware verification
+  script. Verified on Pi 5: 5/5 reads at 22.3 °C / 61% RH.
+- `telemetry_pipeline.py`: new `--dht11-pin` flag. Worker reads DHT11 ambient
+  (averaged over 3 samples) at run start and run end, records to
+  `run_metadata.json` under `ambient_dht11_start` / `ambient_dht11_end`.
+  DHT11 is +/- 2 °C, 1 °C resolution; explicitly marked logging-only, not
+  fed to scheduler.
+- Worker join timeout extended by 8s when DHT11 active (sensor read takes
+  up to 6.6s during shutdown).
+- Metadata gathering moved to background thread so `start_monotonic` is
+  set within ~50ms of worker spawn. Eliminates ~2-3s dead time from git/
+  vcgencmd metadata calls eating into the sampling window.
+- Integration test v4 result: 300/299 samples (completeness 1.003),
+  sensor_failure_rate 0.0, queue_drops 0. Phase A.2 verified.
+
+### Hardware Environment (Pi 5)
+- lgpio library stack: `liblgpio-dev` + `pip install lgpio` inside
+  `yolov8_env`. `adafruit-circuitpython-dht==4.0.12` with `use_pulseio=False`.
+- DHT11 wired: VCC → Pin 1 (3.3V), DATA → Pin 7 (BCM 4), GND → Pin 6.
+  3-pin breakout board (pull-up built in).
+
+### Known Deferred (v0.4 sweep)
+- N2.1: SIGINT handling in worker processes (zombie on Ctrl-C edge case)
+- N2.2: decimal.InvalidOperation in _to_float
+- N2.3: O(n) inverse lookup in StateVectorBuilder
+- S3.4/3.5/3.6/3.7/3.8/3.9: pytest migration, queue-drop test, double-seed,
+  cpu_percent warmup, PYTHONPATH, inline import
+- Severity 4 cosmetics (Unicode symbols, git diff capture on dirty tree)
+
 ## [2026-04-21] Document OpenVINO Export Process
 
 ### Added
