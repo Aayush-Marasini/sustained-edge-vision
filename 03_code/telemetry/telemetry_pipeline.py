@@ -377,22 +377,25 @@ def _telemetry_worker_entry(
     shared_start_monotonic.value = start_monotonic
 
     sample_index = 0
+    _BUSY_WAIT_THRESHOLD = 0.015  # switch to busy-wait for final 15ms of each tick
     try:
         while not stop_event.is_set():
             target = start_monotonic + sample_index * sample_interval
-
             # Stop if we have reached the requested duration.
             if duration_sec is not None and (target - start_monotonic) >= duration_sec:
                 break
-
             now = time.monotonic()
             if now < target:
-                # Use a short timeout on the stop event so we remain
-                # responsive to shutdown while waiting for the next tick.
-                stop_event.wait(timeout=target - now)
-                if stop_event.is_set():
-                    break
-
+                coarse_wait = target - now - _BUSY_WAIT_THRESHOLD
+                if coarse_wait > 0:
+                    # Sleep most of the interval via stop_event.wait so we
+                    # remain responsive to shutdown signals.
+                    stop_event.wait(timeout=coarse_wait)
+                    if stop_event.is_set():
+                        break
+                # Busy-wait the final 15ms to avoid OS scheduler jitter.
+                while time.monotonic() < target:
+                    pass
             sample_monotonic = time.monotonic()
             sample = _read_all_signals(psutil, failures)
             row = {
@@ -427,8 +430,14 @@ def _telemetry_worker_entry(
             session_meta["ambient_dht11_end"] = _read_dht11_averaged(dht11_pin)
         else:
             session_meta["ambient_dht11_end"] = None
+        # The sampling loop breaks when target >= duration_sec, so the last
+        # valid sample index is floor(duration_sec * rate) - 1, giving
+        # floor(duration_sec * rate) total samples as the theoretical maximum.
+        # We subtract 1 additional sample as margin for the final-tick
+        # boundary condition (target == duration_sec triggers break before write).
         expected_samples = (
-            int(duration_sec * sampling_rate_hz) if duration_sec is not None else None
+            max(1, int(duration_sec * sampling_rate_hz) - 1)
+            if duration_sec is not None else None
         )
         session_meta["samples_expected"] = expected_samples
         session_meta["failure_counts"] = failures.as_dict()
