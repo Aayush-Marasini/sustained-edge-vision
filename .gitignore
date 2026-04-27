@@ -51,3 +51,10 @@ desktop.ini
 *.tar.gz
 *.7z
 05_results/power_data/*.db
+
+# Models (regenerate via export scripts)
+02_models/openvino/
+
+# Workload videos (download via scripts or README instructions)
+04_workload/videos/*.mp4
+04_workload/videos/*.avi
