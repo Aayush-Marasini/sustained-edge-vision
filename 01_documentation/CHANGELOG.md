@@ -8,6 +8,35 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.6] — 2026-04-26
+
+### Phase D.1 Minimal Inference Runtime
+- Created `03_code/inference/run_inference.py`: standalone YOLOv8n
+  OpenVINO inference script for baseline FPS measurement.
+- Exported YOLOv8n FP32 model via Ultralytics → OpenVINO IR format
+  (yolov8n.xml + yolov8n.bin, 13 MB total).
+- Downloaded test video from Pexels: test_traffic.mp4 (1920×1080,
+  25 FPS, 393 frames, 7.8 MB, CC0 license).
+- **Baseline inference throughput on Pi 5 (passive cooling)**:
+  - Avg latency: 71.82 ms
+  - Avg FPS: 13.92
+  - Input resolution: 640×640
+  - Precision: FP32
+
+### Infrastructure
+- Updated .gitignore to exclude models (02_models/openvino/) and
+  videos (04_workload/videos/*.mp4) from version control.
+- Added README.md in 02_models/openvino/ with FP32 export command.
+- Added README.md in 04_workload/videos/ with test video download link.
+- Model and video files are regenerated/downloaded via documented
+  commands rather than committed to git.
+
+### Next: Phase D.2
+- Write run_experiment.py: full experiment harness integrating
+  inference + telemetry pipeline for 30-minute baseline runs.
+- Implement model precision swapping (FP32 ↔ INT8).
+- Export INT8 quantized model.
+
 ## [v0.5] — 2026-04-26
 
 ### Phase B.5 EMA Parameter Tuning Complete

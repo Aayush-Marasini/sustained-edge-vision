@@ -3,6 +3,10 @@
 Last Updated: April 19, 2026
 
 ## 1. What is already proven
+- **[v0.6] Phase D.1 minimal inference runtime working**: YOLOv8n
+  FP32 via OpenVINO achieves 13.92 FPS on Pi 5 passive cooling
+  (71.82 ms avg latency). Standalone inference script ready for
+  integration with telemetry pipeline.
 
 - **[v0.5] Phase B.5 EMA parameter tuning complete**: Swept 20 (alpha,
   derivative_stride) pairs on calibration traces. Selected Pareto-optimal
@@ -44,16 +48,17 @@ Last Updated: April 19, 2026
   Tests stable at 9/9 (derivatives) + e2e PASSED on both Windows and Pi.
 
 ### In Flight
-- **Phase C**: Workload video curation (moderate + realistic from CC sources).
-- **Phase D**: Inference runtime build (`run_experiment.py` with OpenVINO
-  model swap).
+- **Phase D.2**: Full experiment harness (run_experiment.py) integrating
+  inference + telemetry for 30-min runs.
+- **Phase D.2**: Model precision swapping (FP32 ↔ INT8).
 
 ### What Is NOT Yet Started
+- **Phase D**: INT8 model export and quantization.
 - **Phase D**: Baseline runs (36-cell strategic matrix, 3 reps each).
 - **Phase D**: HCC mechanism implementation.
-- **Phase D**: PowerZ SQLite reader script (sync power with telemetry).
+- **Phase D**: PowerZ SQLite reader script.
 - **Phase D**: Analysis scripts and figure generation.
-- **Phase D**: Overhead profiling, HCC stability proof (per IoT-J expectations).
+- **Phase D**: Overhead profiling, HCC stability proof.
 - **Phase E**: Paper drafting against IoT-J template.
 
 ## Progress log
