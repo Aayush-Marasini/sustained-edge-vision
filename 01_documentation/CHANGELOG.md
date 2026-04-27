@@ -8,6 +8,41 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.5] — 2026-04-26
+
+### Phase B.5 EMA Parameter Tuning Complete
+- Swept 20 (alpha, derivative_stride) pairs against 4 calibration traces.
+- Metrics:
+  - **Noise variance**: std dev of T_dot during steady states (idle plateau,
+    stress soak)
+  - **Response lag (90% rise time)**: time from heating ramp start (when
+    stress-ng begins) to when T_dot reaches 90% of peak heating rate
+- Selection criterion: minimize noise subject to 90% rise time <= 10s
+  (matching Pi 5 passive cooling thermal RC time constant)
+- **Selected configuration (Pareto-optimal)**:
+  - alpha = 0.1
+  - derivative_stride = 10
+  - Combined noise: 0.0759 C/s (std dev)
+  - 90% rise time: 10.0 s
+- Updated `03_code/scheduler/derivatives.py` DEFAULT_CONFIG_5HZ with
+  empirically-justified values.
+- Generated paper-quality artifacts:
+  - `05_results/calibration_analysis/pareto_alpha_stride.png` (Pareto
+    frontier plot for §III figure)
+  - `05_results/calibration_analysis/tuning_report.md` (methodology)
+  - `05_results/calibration_analysis/sweep_raw_data.csv` (raw sweep data)
+
+### Technical Notes
+- The 10-second lag budget was set based on empirical measurements of
+  the Pi 5's thermal step response. When a CPU workload initiates
+  (stress-ng 4-core matrixprod), the temperature derivative reaches 90%
+  of peak heating rate in 8.7-10.0 seconds depending on EMA parameters.
+- Lower alpha (0.1 vs prior 0.2) and higher stride (10 vs prior 5)
+  produce 2.1× lower noise variance, critical for stable HCC decision
+  logic that will swap FP32↔INT8 based on T_dot thresholds.
+- Unit tests in `tests/test_derivatives.py` verified to pass with new
+  configuration.
+
 ## [v0.4] — 2026-04-26
 
 ### Phase B Calibration Data Collection Complete

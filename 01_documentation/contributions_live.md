@@ -3,6 +3,13 @@
 Last Updated: April 19, 2026
 
 ## 1. What is already proven
+
+- **[v0.5] Phase B.5 EMA parameter tuning complete**: Swept 20 (alpha,
+  derivative_stride) pairs on calibration traces. Selected Pareto-optimal
+  configuration (alpha=0.1, stride=10) with lowest noise (0.0759 C/s std)
+  subject to 10s lag budget. Updated derivatives.py with empirically-justified
+  values. Generated paper-quality Pareto plot for §III.
+
 - **[v0.4] Phase B calibration data collected**: 4 paper-quality 30-min
   runs at 22.7-23.6 C ambient (2x idle + 2x stress-ng matrixprod, all
   passive cooling). All achieve completeness >= 1.0001 with
@@ -37,26 +44,17 @@ Last Updated: April 19, 2026
   Tests stable at 9/9 (derivatives) + e2e PASSED on both Windows and Pi.
 
 ### In Flight
-- **Phase B.5**: EMA parameter tuning. Write `tune_ema_parameters.py`
-  to sweep alpha and derivative_stride against the 4 calibration traces.
-  Output: updated DEFAULT_CONFIG_5HZ in derivatives.py with empirically
-  justified values + tuning_report.md documenting the sweep methodology
-  and selection criterion.
+- **Phase C**: Workload video curation (moderate + realistic from CC sources).
+- **Phase D**: Inference runtime build (`run_experiment.py` with OpenVINO
+  model swap).
 
 ### What Is NOT Yet Started
-- **Phase C**: Workload video curation (moderate + realistic from CC sources).
-- **Phase D**: Inference runtime (`run_experiment.py`) with OpenVINO model
-  swap. Required before any baseline runs.
 - **Phase D**: Baseline runs (36-cell strategic matrix, 3 reps each).
-- **Phase D**: HCC mechanism implementation (mathematical control logic).
-- **Phase D**: Scheduler decision logic beyond static config.
-- **Phase D**: PowerZ SQLite reader script (sync power data with telemetry
-  CSVs via Unix epoch timestamps).
+- **Phase D**: HCC mechanism implementation.
+- **Phase D**: PowerZ SQLite reader script (sync power with telemetry).
 - **Phase D**: Analysis scripts and figure generation.
-- **Phase D**: HCC stability proof (per IoT-J reviewer expectations re:
-  control thrashing at thermal boundaries).
-- **Phase D**: Overhead profiling (scheduler CPU/latency cost isolation).
-- **Phase E**: Paper drafting against IoT-J template (Impact Factor ~10.6).
+- **Phase D**: Overhead profiling, HCC stability proof (per IoT-J expectations).
+- **Phase E**: Paper drafting against IoT-J template.
 
 ## Progress log
 

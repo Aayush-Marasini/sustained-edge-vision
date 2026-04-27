@@ -37,17 +37,30 @@ Design decisions (justification for paper §III.B)
 
 Per-signal defaults at 5 Hz (dt = 0.2 s)
 ----------------------------------------
-These are *starting values* to be refined against real traces collected
-by telemetry_pipeline.py.
+Temperature (temp_soc) parameters empirically tuned via Phase B.5
+calibration sweep (2026-04-26). Selected Pareto-optimal configuration
+with lowest noise (0.0759 C/s std dev) subject to 10-second 90% rise
+time budget (matching Pi 5 passive cooling thermal RC time constant):
 
-  temp_soc   alpha=0.20  stride=10    tau_smooth ~= 0.8 s, rate window 2 s
-  cpu_util   alpha=0.10  stride=15    tau_smooth ~= 1.8 s, rate window 3 s
-  volt_core  alpha=0.30  stride=5     tau_smooth ~= 0.5 s, rate window 1 s
+  temp_soc   alpha=0.10  stride=10    tau_smooth ~= 1.8 s, rate window 2.0 s
+
+CPU utilization and voltage retain initial heuristic values pending
+Phase D baseline profiling:
+
+  cpu_util   alpha=0.10  stride=15    tau_smooth ~= 1.8 s, rate window 3.0 s
+  volt_core  alpha=0.30  stride=5     tau_smooth ~= 0.5 s, rate window 1.0 s
 
 Change log
 ----------
 v0.1 (2026-04-19): initial implementation following the design agreed
   in the Task 10/11 planning discussion.
+v0.5 (2026-04-26): Phase B.5 EMA parameter tuning complete. Updated
+  temp_soc alpha from 0.20 to 0.10 and derivative_stride from 10 to 10
+  (stride unchanged, alpha tuned down for 2.1x lower noise variance).
+  Selection based on Pareto sweep over 20 (alpha, stride) pairs on 4
+  calibration traces (2x idle, 2x stress-ng matrixprod). Noise metric:
+  std dev of T_dot during steady states. Lag metric: 90% rise time
+  during heating ramp when stress-ng starts. See tuning_report.md.
 """
 
 import math
@@ -143,8 +156,10 @@ def _is_finite(x: float) -> bool:
 
 
 # Default per-signal smoothing/stride config at 5 Hz.
+# temp_soc parameters empirically tuned via Phase B.5 (2026-04-26).
+# cpu_util and volt_core retain heuristic values pending Phase D profiling.
 DEFAULT_CONFIG_5HZ: Dict[str, Dict[str, float]] = {
-    "temp_soc":  {"alpha": 0.20, "derivative_stride": 10, "dt": 0.2},
+    "temp_soc":  {"alpha": 0.10, "derivative_stride": 10, "dt": 0.2},
     "cpu_util":  {"alpha": 0.10, "derivative_stride": 15, "dt": 0.2},
     "volt_core": {"alpha": 0.30, "derivative_stride": 5,  "dt": 0.2},
     # Auxiliary signals: tracked, derivatives informational only.
