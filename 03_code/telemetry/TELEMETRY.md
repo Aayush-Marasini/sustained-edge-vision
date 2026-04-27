@@ -25,16 +25,37 @@ for the telemetry section of the paper appendix.
 
 ## Per-signal reference
 
-| CSV column | Unit | Source | Read method | Failure mode | Value on failure |
-|---|---|---|---|---|---|
-| `temp_soc_c` | °C | SoC thermal sensor | `/sys/class/hwmon/hwmon0/temp1_input` (milli-°C), fallback to `/sys/class/thermal/thermal_zone0/temp` | File read error, missing hwmon node | `None` (empty CSV cell) |
-| `volt_core_v` | V | Broadcom firmware | `vcgencmd measure_volts core` | `vcgencmd` missing, subprocess timeout, parse error | `None` |
-| `cpu_util_percent` | % | psutil | `psutil.cpu_percent(interval=None)` | psutil not installed | `None` |
-| `mem_util_percent` | % | psutil | `psutil.virtual_memory().percent` | psutil not installed | `None` |
-| `cpu_freq_mhz` | MHz | Broadcom firmware | `vcgencmd measure_clock arm` | `vcgencmd` missing or returns unexpected format | `None` |
-| `throttle_raw` | integer | Broadcom firmware | `vcgencmd get_throttled` (hex parsed to int) | `vcgencmd` failure | `None` |
-| `throttled_now` | 0/1 | Derived | Bit 2 (`0x4`) of `throttle_raw` | Upstream failure | `None` |
-| `undervolt_now` | 0/1 | Derived | Bit 0 (`0x1`) of `throttle_raw` | Upstream failure | `None` |
+| CSV column | Unit | Source | Read method | Effective rate | Failure mode | Value on failure |
+|---|---|---|---|---|---|---|
+| `temp_soc_c` | °C | SoC thermal sensor | `/sys/class/hwmon/hwmon0/temp1_input` (milli-°C), fallback to `/sys/class/thermal/thermal_zone0/temp` | 5 Hz (fast) | File read error, missing hwmon node | `None` (empty CSV cell) |
+| `volt_core_v` | V | Broadcom firmware | `vcgencmd measure_volts core` | **1 Hz, carry-forward** | `vcgencmd` missing, subprocess timeout, parse error | `None` |
+| `cpu_util_percent` | % | psutil | `psutil.cpu_percent(interval=None)` | 5 Hz (fast) | psutil not installed | `None` |
+| `mem_util_percent` | % | psutil | `psutil.virtual_memory().percent` | 5 Hz (fast) | psutil not installed | `None` |
+| `cpu_freq_mhz` | MHz | Linux cpufreq | `/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq` (kHz), fallback to `vcgencmd measure_clock arm` | 5 Hz (fast) | sysfs and vcgencmd both fail | `None` |
+| `throttle_raw` | integer | Broadcom firmware | `vcgencmd get_throttled` (hex parsed to int) | **1 Hz, carry-forward** | `vcgencmd` failure | `None` |
+| `throttled_now` | 0/1 | Derived | Bit 2 (`0x4`) of `throttle_raw` | **1 Hz, carry-forward** | Upstream failure | `None` |
+| `undervolt_now` | 0/1 | Derived | Bit 0 (`0x1`) of `throttle_raw` | **1 Hz, carry-forward** | Upstream failure | `None` |
+
+### Slow-signal decimation (v0.7, S1.1 fix)
+
+To meet the IoT-J overhead-profiling requirement (<3% scheduler cost),
+the four slow Broadcom-firmware signals are sampled every 5th base tick
+(1 Hz at the default 5 Hz base rate). Between refreshes, the last
+observed value is carried forward into each CSV row.
+
+- **Why this is safe for the scheduler:** The scheduler's thermal time
+  constant is tau ~ 10 s (Phase B EMA tuning, alpha=0.1, stride=10).
+  1 Hz sampling is 10x oversampled relative to tau. Voltage and throttle
+  state changes that matter to scheduling are RC-determined in seconds,
+  not milliseconds.
+- **Acknowledged limitation:** sub-200 ms throttle bursts are not
+  resolvable. The paper does not claim to detect them; throttle is
+  treated as a steady-state regime indicator, not a transient event
+  detector.
+- **Reproducibility:** the `run_metadata.json` field
+  `slow_signal_decimation_factor` records the in-effect factor for
+  every run. Post-hoc analysis scripts MUST honor it when computing
+  per-second rates from carry-forward columns.
 
 ### Throttle bit semantics (Raspberry Pi documentation)
 

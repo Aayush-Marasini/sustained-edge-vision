@@ -8,6 +8,59 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7] — 2026-04-27
+
+### Summary
+S1.1 fix: telemetry vcgencmd overhead reduced. Targets the 15% inference
+slowdown observed in the v0.6 60s smoke test, blocking Phase D.4 baseline
+runs. WorkPlan §6.2 Task 10; IoT-J reviewer-facing requirement #2
+(overhead profiling).
+
+### Changed
+- `03_code/telemetry/telemetry_pipeline.py`:
+  - `_read_cpu_freq()` now reads `/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`
+    (kHz, single file read, ~5 us). Falls back to `vcgencmd measure_clock arm`
+    only if sysfs node is absent. Eliminates 1 of 3 vcgencmd subprocesses
+    per sample.
+  - New `_read_all_signals_decimated()` samples `volt_core_v`,
+    `throttle_raw`, `throttled_now`, `undervolt_now` at 1 Hz (every 5th
+    base sample), carrying values forward in between via a worker-local
+    cache. Eliminates ~80% of remaining vcgencmd subprocess overhead.
+  - Sampling-loop call site updated to use the decimated reader.
+
+### CSV Semantics — No Silent Changes Rule disclosure
+- `telemetry_raw.csv` columns `volt_core_v`, `throttle_raw`,
+  `throttled_now`, `undervolt_now` now contain carry-forward (zero-order
+  hold) values on 4 of every 5 rows. The (k*5)-th row is a fresh read.
+- This is mathematically equivalent to a 1 Hz sampling regime for those
+  signals, oversampled 10x relative to the scheduler's thermal time
+  constant tau ~ 10s (proposal_v2.pdf §4).
+- The `temp_soc_c`, `cpu_util_percent`, `mem_util_percent`, `cpu_freq_mhz`
+  columns remain at the full 5 Hz fast rate.
+- Limitation: sub-200 ms throttle bursts are not observable. Acceptable;
+  Pi 5 thermal-throttle dwell is RC-determined in seconds.
+
+### Metadata
+- `run_metadata.json` (schema version unchanged) gains three additive
+  fields:
+  - `slow_signal_decimation_factor` (int, e.g. 5)
+  - `effective_sampling_rate_hz` (dict: fast_signals, slow_signals)
+  - `slow_signals` (list of CSV column names treated as slow)
+- Old metadata readers are unaffected (additive only).
+
+### Validity of prior logs
+- The four v0.5 calibration runs (2x idle + 2x stress, 30 min each at
+  ~22.7-23.6 C ambient) are NOT invalidated. They predate this change
+  and ran at uniform 5 Hz across all signals; their EMA tuning
+  (alpha=0.1, stride=10) is unaffected because the tuning used only
+  temp_soc_c, which remains 5 Hz under the new regime.
+
+### Verification (PENDING — to be appended in v0.7.1 after Pi runs)
+- [ ] 60s smoke test with new pipeline: completeness >= 0.99,
+      sensor_failure_rate == 0
+- [ ] 5-min paired benchmark: inference-only vs inference+telemetry,
+      n=3 reps each, target <3% mean-FPS delta. Hard numbers in next entry.
+
 ## [v0.6] — 2026-04-26
 
 ### Phase D.1 Minimal Inference Runtime

@@ -389,6 +389,12 @@ def _telemetry_worker_entry(
     _meta_thread = threading.Thread(target=_gather_meta_bg, daemon=True, name="meta_bg")
     _meta_thread.start()
     _BUSY_WAIT_THRESHOLD = 0.015  # switch to busy-wait for final 15ms of each tick
+
+    # Slow-signal cache for vcgencmd decimation (S1.1 fix).
+    # Initialized to None so the first refresh (at sample_index == 0)
+    # populates them before any row is written.
+    slow_cache: Dict[str, Any] = {k: None for k in _SLOW_SIGNAL_KEYS}
+
     try:
         while not stop_event.is_set():
             target = start_monotonic + sample_index * sample_interval
@@ -408,7 +414,10 @@ def _telemetry_worker_entry(
                 while time.monotonic() < target:
                     pass
             sample_monotonic = time.monotonic()
-            sample = _read_all_signals(psutil, failures)
+            sample = _read_all_signals_decimated(
+                psutil, failures, slow_cache, sample_index,
+                _SLOW_SIGNAL_DECIMATION,
+            )
             row = {
                 "monotonic_offset_s": round(sample_monotonic - start_monotonic, 6),
                 "utc_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -457,6 +466,14 @@ def _telemetry_worker_entry(
         )
         session_meta["samples_expected"] = expected_samples
         session_meta["failure_counts"] = failures.as_dict()
+        # S1.1: record the decimation regime so any post-hoc analysis
+        # of volt_core / throttle treats carry-forward rows correctly.
+        session_meta["slow_signal_decimation_factor"] = _SLOW_SIGNAL_DECIMATION
+        session_meta["effective_sampling_rate_hz"] = {
+            "fast_signals": sampling_rate_hz,
+            "slow_signals": sampling_rate_hz / _SLOW_SIGNAL_DECIMATION,
+        }
+        session_meta["slow_signals"] = list(_SLOW_SIGNAL_KEYS)
         session_meta["trace_quality"] = _compute_trace_quality(
             csv_path=csv_path,
             sampling_rate_hz=sampling_rate_hz,
@@ -483,13 +500,32 @@ _HWMON_TEMP_PATHS = (
 )
 
 
+# Decimation factor for slow Broadcom-firmware signals.
+#
+# Rationale (paper §IV, IoT-J overhead profiling requirement):
+#   Per-sample profiling at 5 Hz showed ~75 ms/s of vcgencmd subprocess
+#   overhead (3 calls/sample x 5 Hz x ~5 ms each). Two of three calls
+#   (volt_core, throttle) are state signals that change far slower than
+#   the scheduler's thermal time constant tau ~ 10 s (proposal_v2.pdf §4).
+#   Sampling them at 1 Hz (factor 5 below the 5 Hz base) is still 10x
+#   oversampled relative to tau. Carry-forward between refreshes preserves
+#   per-row CSV completeness.
+#
+#   Limitation acknowledged in TELEMETRY.md: sub-200 ms throttle bursts
+#   are not observable. Acceptable because thermal-throttle events on the
+#   Pi 5 have RC-determined dwell of seconds, not milliseconds.
+_SLOW_SIGNAL_DECIMATION = 5
+
+_SLOW_SIGNAL_KEYS = ("volt_core_v", "throttle_raw", "throttled_now", "undervolt_now")
+
+
 def _read_all_signals(psutil_mod: Any, failures: _FailureCounters) -> Dict[str, Any]:
     """
     Read every signal exactly once. Any failure produces None (not 0.0)
     so downstream derivative computation sees a gap and skips that sample.
 
-    Returns a dict keyed by _CSV_FIELDNAMES minus monotonic_offset_s and
-    utc_timestamp (those are stamped by the caller).
+    Kept for non-decimated callers (unit tests, ad-hoc scripts).
+    Production sampling loop uses _read_all_signals_decimated().
     """
     return {
         "temp_soc_c": _read_temp(failures),
@@ -499,6 +535,41 @@ def _read_all_signals(psutil_mod: Any, failures: _FailureCounters) -> Dict[str, 
         "cpu_freq_mhz": _read_cpu_freq(failures),
         **_read_throttle(failures),
     }
+
+
+def _read_all_signals_decimated(
+    psutil_mod: Any,
+    failures: _FailureCounters,
+    slow_cache: Dict[str, Any],
+    sample_index: int,
+    decimate_every_n: int = _SLOW_SIGNAL_DECIMATION,
+) -> Dict[str, Any]:
+    """
+    Like _read_all_signals(), but skips expensive vcgencmd reads on
+    most calls and carries the previous values forward.
+
+    Fast every call:  temp (sysfs), cpu_util (psutil), mem_util (psutil),
+                      cpu_freq (sysfs)  -- all O(microseconds)
+    Slow, decimated:  volt_core, throttle  -- vcgencmd subprocess (~5 ms)
+
+    On the (k * decimate_every_n)-th call the slow signals are refreshed
+    and `slow_cache` is mutated in place. Between refreshes, the cached
+    values are returned. The first call (sample_index == 0) is always a
+    refresh, so no row is ever published with all-None slow signals.
+    """
+    fast = {
+        "temp_soc_c": _read_temp(failures),
+        "cpu_util_percent": _read_cpu_util(psutil_mod, failures),
+        "mem_util_percent": _read_mem_util(psutil_mod, failures),
+        "cpu_freq_mhz": _read_cpu_freq(failures),
+    }
+    if sample_index % decimate_every_n == 0:
+        slow_cache["volt_core_v"] = _read_volt_core(failures)
+        throttle = _read_throttle(failures)
+        slow_cache["throttle_raw"] = throttle["throttle_raw"]
+        slow_cache["throttled_now"] = throttle["throttled_now"]
+        slow_cache["undervolt_now"] = throttle["undervolt_now"]
+    return {**fast, **slow_cache}
 
 def _read_dht11_averaged(pin_bcm: int, n_reads: int = 3, max_attempts: int = 8) -> Optional[Dict[str, Any]]:
     """
@@ -622,7 +693,36 @@ def _read_mem_util(psutil_mod: Any, failures: _FailureCounters) -> Optional[floa
         return None
 
 
+# Linux cpufreq sysfs node, present on Pi 5 and any kernel with cpufreq.
+# Returns active frequency in kHz as a single integer line.
+_CPU_FREQ_SYSFS_PATH = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
+
+
 def _read_cpu_freq(failures: _FailureCounters) -> Optional[float]:
+    """
+    Read current ARM CPU frequency in MHz.
+
+    Primary: sysfs (~5 us, no subprocess). On Pi 5 + Debian, this is the
+    cpufreq governor's active frequency in kHz, exactly the same value
+    `vcgencmd measure_clock arm` reports (modulo PLL rounding).
+
+    Fallback: `vcgencmd measure_clock arm` (~5 ms subprocess). Used only
+    when the sysfs node is absent (non-Pi host, unusual kernel build).
+
+    Returns
+    -------
+    float | None
+        Frequency in MHz, or None if both sources fail.
+    """
+    # Fast path: sysfs.
+    try:
+        with open(_CPU_FREQ_SYSFS_PATH, encoding="utf-8") as f:
+            khz = int(f.read().strip())
+            return khz / 1000.0  # kHz -> MHz
+    except (OSError, ValueError):
+        pass  # fall through to vcgencmd
+
+    # Fallback: vcgencmd (kept so non-cpufreq hosts still get a value).
     out = _run(["vcgencmd", "measure_clock", "arm"])
     if out is None:
         failures.cpu_freq += 1
@@ -630,7 +730,7 @@ def _read_cpu_freq(failures: _FailureCounters) -> Optional[float]:
     try:
         # "frequency(0)=1500019456"
         hz = int(out.split("=", 1)[1])
-        return hz / 1.0e6  # -> MHz
+        return hz / 1.0e6  # Hz -> MHz
     except (IndexError, ValueError):
         failures.cpu_freq += 1
         return None
