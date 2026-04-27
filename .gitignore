@@ -50,3 +50,4 @@ desktop.ini
 *.zip
 *.tar.gz
 *.7z
+05_results/power_data/*.db
