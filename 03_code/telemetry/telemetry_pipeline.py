@@ -165,7 +165,7 @@ class TelemetryPipeline:
         self.duration_sec = duration_sec
         self.ambient_temp_c = ambient_temp_c
         self.cooling_condition = cooling_condition
-        self.tags = dict(tags) if tags else {}
+        self.tags = json.loads(tags) if (tags and isinstance(tags, str)) else (tags if isinstance(tags, dict) else {})
         self.scheduler_queue = scheduler_queue
         self.dht11_pin = dht11_pin
         self.seed = seed
