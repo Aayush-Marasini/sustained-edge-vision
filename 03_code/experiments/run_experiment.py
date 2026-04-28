@@ -50,6 +50,7 @@ def run_telemetry(
     duration: float,
     ambient_temp_c: float,
     cooling: str,
+    sampling_rate_hz: float,
     dht11_pin: Optional[int],
     tags: Dict[str, Any],
     run_dir: Path,
@@ -69,7 +70,7 @@ def run_telemetry(
         "--ambient-temp-c", str(ambient_temp_c),
         "--cooling", cooling,
         "--tags", json.dumps(tags),
-        "--sampling-rate-hz", str(args.sampling_rate_hz),
+        "--sampling-rate-hz", str(sampling_rate_hz),
         "--run-dir", str(run_dir),
     ]
     
@@ -122,14 +123,15 @@ def main():
     # Start telemetry subprocess
     print("Starting telemetry...")
     telemetry_proc = run_telemetry(
-        duration=args.duration,
-        ambient_temp_c=args.ambient_temp_c,
-        cooling=args.cooling,
-        dht11_pin=args.dht11_pin,
-        tags=tags,
-        run_dir=run_dir,
-        shared_start_monotonic=shared_start_monotonic,
-    )
+    duration=args.duration,
+    ambient_temp_c=args.ambient_temp_c,
+    cooling=args.cooling,
+    sampling_rate_hz=args.sampling_rate_hz,  
+    dht11_pin=args.dht11_pin,
+    tags=args.tags,
+    run_dir=run_dir,
+    shared_start_monotonic=shared_start_monotonic,
+)
 
     # Start inference worker process
     print("Starting inference...")
