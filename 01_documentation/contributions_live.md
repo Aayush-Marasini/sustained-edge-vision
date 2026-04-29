@@ -93,3 +93,9 @@ Once thermometer arrives:
   2. Run 30-min stress calibration (YOLOv8n + thermal_benchmark_30fps.mp4)
   3. Commit both run_metadata.json files
   4. Proceed to Task 11 parameter tuning (EMA alpha, derivative stride)
+
+### 2026-04-28 (continued)
+- **S1.1 optimization**: Reduced telemetry sampling from 5 Hz → 2 Hz via Nyquist analysis (20× oversampled for τ=10s).
+- **Final overhead verified**: 1.48% relative (1.21 ms/frame absolute) via 3+3 paired 5-min runs at 2 Hz.
+- **Phase D.2 milestone REACHED**: Scheduler overhead <3% in both latency and energy (PowerZ recorded).
+- **Next**: S1.5 (EMA α recalibration for Δt=0.5s), then S1.2/S1.3/S1.4 correctness fixes, then Phase D.4 baseline runs.
