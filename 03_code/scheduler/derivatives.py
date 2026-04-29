@@ -42,13 +42,42 @@ calibration sweep (2026-04-26). Selected Pareto-optimal configuration
 with lowest noise (0.0759 C/s std dev) subject to 10-second 90% rise
 time budget (matching Pi 5 passive cooling thermal RC time constant):
 
-  temp_soc   alpha=0.10  stride=10    tau_smooth ~= 1.8 s, rate window 2.0 s
+  temp_soc   alpha=0.10  stride=10    tau_smooth ~= 1.898 s, rate window 2.0 s
 
 CPU utilization and voltage retain initial heuristic values pending
 Phase D baseline profiling:
 
-  cpu_util   alpha=0.10  stride=15    tau_smooth ~= 1.8 s, rate window 3.0 s
-  volt_core  alpha=0.30  stride=5     tau_smooth ~= 0.5 s, rate window 1.0 s
+  cpu_util   alpha=0.10  stride=15    tau_smooth ~= 1.898 s, rate window 3.0 s
+  volt_core  alpha=0.30  stride=5     tau_smooth ~= 0.561 s, rate window 1.0 s
+
+Per-signal defaults at 2 Hz (dt = 0.5 s) — S1.5 recalibration
+----------------------------------------------------------------
+Alpha values recalculated to PRESERVE tau_smooth from 5 Hz config.
+Formula: alpha_new = 1 - exp(-dt_new / tau_smooth)
+
+Derivation:
+  temp_soc:  tau=1.898s -> alpha = 1 - exp(-0.5/1.898) = 0.2314
+  cpu_util:  tau=1.898s -> alpha = 1 - exp(-0.5/1.898) = 0.2314
+  volt_core: tau=0.561s -> alpha = 1 - exp(-0.5/0.561) = 0.5901
+  cpu_freq:  tau=0.561s -> alpha = 1 - exp(-0.5/0.561) = 0.5901
+  mem_util:  tau=0.694s -> alpha = 1 - exp(-0.5/0.694) = 0.5120
+
+Stride values recalculated to PRESERVE rate window duration:
+  rate_window = stride * dt -> stride_new = rate_window / dt_new
+
+  temp_soc:  window=2.0s  -> stride = 2.0/0.5 = 4
+  cpu_util:  window=3.0s  -> stride = 3.0/0.5 = 6
+  volt_core: window=1.0s  -> stride = 1.0/0.5 = 2
+  cpu_freq:  window=1.0s  -> stride = 1.0/0.5 = 2
+  mem_util:  window=2.0s  -> stride = 2.0/0.5 = 4
+
+Change log
+----------
+v0.1 (2026-04-19): initial implementation.
+v0.5 (2026-04-26): Phase B.5 EMA tuning. alpha=0.10, stride=10 for temp_soc.
+v0.7.3 (2026-04-29): S1.5 — added DEFAULT_CONFIG_2HZ. Alpha/stride recalculated
+  to preserve tau_smooth and rate_window at new 2 Hz default sampling rate.
+  DEFAULT_CONFIG_5HZ retained for backward compatibility and unit tests.
 
 Change log
 ----------
@@ -155,9 +184,10 @@ def _is_finite(x: float) -> bool:
 # -- State vector builder -----------------------------------------------------
 
 
-# Default per-signal smoothing/stride config at 5 Hz.
-# temp_soc parameters empirically tuned via Phase B.5 (2026-04-26).
-# cpu_util and volt_core retain heuristic values pending Phase D profiling.
+# ---------------------------------------------------------------------------
+# 5 Hz config (dt = 0.2 s) — Phase B.5 empirically tuned (2026-04-26)
+# Retained for backward compatibility and unit tests.
+# ---------------------------------------------------------------------------
 DEFAULT_CONFIG_5HZ: Dict[str, Dict[str, float]] = {
     "temp_soc":  {"alpha": 0.10, "derivative_stride": 10, "dt": 0.2},
     "cpu_util":  {"alpha": 0.10, "derivative_stride": 15, "dt": 0.2},
@@ -166,6 +196,27 @@ DEFAULT_CONFIG_5HZ: Dict[str, Dict[str, float]] = {
     "cpu_freq":  {"alpha": 0.30, "derivative_stride": 5,  "dt": 0.2},
     "mem_util":  {"alpha": 0.20, "derivative_stride": 10, "dt": 0.2},
 }
+
+# ---------------------------------------------------------------------------
+# 2 Hz config (dt = 0.5 s) — S1.5 recalibration (2026-04-29)
+# Alpha and stride recalculated to preserve tau_smooth and rate_window.
+# Formula: alpha_new = 1 - exp(-dt_new / tau_smooth)
+#          stride_new = round(rate_window / dt_new)
+# This is the PRODUCTION default since v0.7.2 set sampling_rate_hz=2.0.
+# ---------------------------------------------------------------------------
+DEFAULT_CONFIG_2HZ: Dict[str, Dict[str, float]] = {
+    "temp_soc":  {"alpha": 0.2314, "derivative_stride": 4,  "dt": 0.5},
+    "cpu_util":  {"alpha": 0.2314, "derivative_stride": 6,  "dt": 0.5},
+    "volt_core": {"alpha": 0.5901, "derivative_stride": 2,  "dt": 0.5},
+    # Auxiliary signals.
+    "cpu_freq":  {"alpha": 0.5901, "derivative_stride": 2,  "dt": 0.5},
+    "mem_util":  {"alpha": 0.5120, "derivative_stride": 4,  "dt": 0.5},
+}
+
+# Production default — matches telemetry_pipeline.py default sampling rate.
+# Update this alias when sampling rate changes; do NOT silently change
+# DEFAULT_CONFIG_5HZ or DEFAULT_CONFIG_2HZ values without a CHANGELOG entry.
+DEFAULT_CONFIG = DEFAULT_CONFIG_2HZ
 
 
 # Map from telemetry_raw.csv column names to estimator keys.
@@ -194,7 +245,7 @@ class StateVectorBuilder:
     """
 
     def __init__(self, config: Optional[Dict[str, Dict[str, float]]] = None):
-        cfg = config or DEFAULT_CONFIG_5HZ
+        cfg = config or DEFAULT_CONFIG
         self._estimators: Dict[str, SignalEstimator] = {
             name: SignalEstimator(**params) for name, params in cfg.items()
         }
