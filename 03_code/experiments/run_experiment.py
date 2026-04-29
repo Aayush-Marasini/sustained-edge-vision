@@ -106,8 +106,8 @@ def main():
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
     workload_tag = tags.get("workload", "unknown")
     run_name = f"{timestamp}_{workload_tag}"
-    run_dir = Path("../../05_results/runs") / run_name
-    run_dir = run_dir.resolve()
+    _REPO_ROOT = _CODE_ROOT.parent  # sustained-edge-vision/
+    run_dir = _REPO_ROOT / "05_results" / "runs" / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Run directory: {run_dir}")
