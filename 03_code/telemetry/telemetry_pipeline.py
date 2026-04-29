@@ -917,8 +917,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42,
                         help="Seed passed through to metadata")
     parser.add_argument(
-        "--sampling-rate-hz", type=float, default=5.0,
-        help="Target sampling rate (default: 5 Hz per proposal §4)",
+        "--sampling-rate-hz", type=float, default=2.0,
+        help="Target sampling rate (default: 2 Hz from 5hz )",
     )
     parser.add_argument(
         "--dht11-pin", type=int, default=None,
