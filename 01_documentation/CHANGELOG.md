@@ -8,6 +8,16 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.4] — 2026-04-29
+
+### S1.4: Absolute path fix for run_experiment.py
+- `run_dir` now computed as `_CODE_ROOT.parent / "05_results" / "runs" / run_name`
+  instead of `Path("../../05_results/runs")`.
+- Script now works correctly when invoked from any CWD (repo root, 03_code/experiments,
+  or anywhere else). Previously only worked from 03_code/experiments/.
+- Fixed `--sampling-rate-hz` default from 5.0 → 2.0 to match v0.7.2 telemetry default.
+- Verified: `--help` works cleanly from both repo root and 03_code/experiments.
+
 ## [v0.7.3] — 2026-04-29
 
 ### S1.5: EMA α/stride recalibration for 2 Hz sampling

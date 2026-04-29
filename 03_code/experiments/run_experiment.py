@@ -89,7 +89,7 @@ def main():
     parser.add_argument("--cooling", required=True, choices=["passive", "active"], help="Cooling strategy")
     parser.add_argument("--dht11-pin", type=int, default=None, help="DHT11 GPIO pin (BCM numbering)")
     parser.add_argument("--tags", type=str, required=True, help="JSON tags dict for metadata")
-    parser.add_argument("--sampling-rate-hz",type=float,default=5.0,help="Telemetry sampling rate in Hz (default: 5.0)")
+    parser.add_argument("--sampling-rate-hz", type=float, default=2.0, help="Telemetry sampling rate in Hz (default: 2.0)")
     args = parser.parse_args()
 
     model_path = Path(args.model)

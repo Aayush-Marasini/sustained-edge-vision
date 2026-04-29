@@ -99,3 +99,11 @@ Once thermometer arrives:
 - **Final overhead verified**: 1.48% relative (1.21 ms/frame absolute) via 3+3 paired 5-min runs at 2 Hz.
 - **Phase D.2 milestone REACHED**: Scheduler overhead <3% in both latency and energy (PowerZ recorded).
 - **Next**: S1.5 (EMA α recalibration for Δt=0.5s), then S1.2/S1.3/S1.4 correctness fixes, then Phase D.4 baseline runs.
+
+### 2026-04-29
+- **S1.5 complete**: EMA α/stride recalibrated for 2 Hz (DEFAULT_CONFIG_2HZ).
+  9/9 unit tests pass. std ratio=1.085 on downsampled stress trace. tau_smooth preserved.
+  No re-calibration runs needed — τ is a physical hardware property, not a measurement artifact.
+- **S1.4 complete**: run_experiment.py run_dir now uses absolute path from __file__.
+  Works from any CWD. Fixed sampling-rate-hz default to 2.0.
+- **Next**: S2.1 (INT8 model export via NNCF), then Task 12 (scheduler decision policy).
