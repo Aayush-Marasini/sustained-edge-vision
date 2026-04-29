@@ -8,6 +8,39 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.3] — 2026-04-29
+
+### S1.5: EMA α/stride recalibration for 2 Hz sampling
+
+**Problem:** v0.7.2 changed default sampling rate to 2 Hz (dt=0.5s) but
+`derivatives.py` retained 5 Hz α/stride values, silently changing the
+effective tau_smooth and rate_window for all signals.
+
+**Fix:** Added `DEFAULT_CONFIG_2HZ` with analytically recalculated
+parameters preserving tau_smooth and rate_window:
+
+| Signal    | α (5Hz) | α (2Hz) | stride (5Hz) | stride (2Hz) | tau_smooth | rate_window |
+|-----------|---------|---------|--------------|--------------|------------|-------------|
+| temp_soc  | 0.10    | 0.2314  | 10           | 4            | 1.898 s    | 2.0 s       |
+| cpu_util  | 0.10    | 0.2314  | 15           | 6            | 1.898 s    | 3.0 s       |
+| volt_core | 0.30    | 0.5901  | 5            | 2            | 0.561 s    | 1.0 s       |
+| cpu_freq  | 0.30    | 0.5901  | 5            | 2            | 0.561 s    | 1.0 s       |
+| mem_util  | 0.20    | 0.5120  | 10           | 4            | 0.694 s    | 2.0 s       |
+
+Formula: `alpha_new = 1 - exp(-dt_new / tau_smooth)`
+         `stride_new = round(rate_window / dt_new)`
+
+**Verified:**
+- 9/9 unit tests pass
+- Downsampled stress trace replay: std ratio = 1.085 (target 0.5-2.0)
+- tau_smooth preservation confirmed analytically and empirically
+
+**No re-calibration needed:** tau is a physical property of Pi 5 hardware,
+independent of sampling rate. Existing Phase B calibration data remains valid.
+
+`DEFAULT_CONFIG_5HZ` retained for backward compatibility and unit tests.
+`StateVectorBuilder` now defaults to `DEFAULT_CONFIG` alias → `DEFAULT_CONFIG_2HZ`.
+
 ## [v0.7.2] — 2026-04-28
 
 ### Optimized
