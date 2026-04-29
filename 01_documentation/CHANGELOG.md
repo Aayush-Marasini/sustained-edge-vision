@@ -8,6 +8,35 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.2] — 2026-04-28
+
+### Optimized
+- **Default sampling rate reduced from 5.0 Hz → 2.0 Hz** for telemetry pipeline.
+  - **Justification (Nyquist):** Scheduler thermal time constant τ ≈ 10s (proposal §4). 
+    2 Hz sampling = 20× oversampled relative to Nyquist (0.1 Hz). Original 5 Hz was 
+    50× oversampled with no scientific benefit.
+  - **Limitation:** CPU utilization sampling now misses sub-500ms transients. Acceptable 
+    because HCC scheduler reacts on thermal derivative (τ_EMA=2s), not CPU spikes.
+  - **Effective rates:** fast signals=2 Hz, slow signals (vcgencmd)=0.4 Hz (decimation factor 5 retained).
+
+### Verified (Pi 5, passive cooling, ambient 22.7-23.0°C)
+- **5-min paired benchmark (n=3 inference-only + 3 inference+telemetry at 2 Hz):**
+  - Inference-only:        mean = 12.396 FPS, std = 0.010
+  - Inference+telemetry:   mean = 12.213 FPS, std = 0.026
+  - **Relative overhead:   1.48%** (target <3%, achieved with 51% margin)
+  - **Absolute overhead:   1.21 ms/frame** (decoupled from compute load)
+
+### Required follow-up (S1.5)
+- **EMA α recalibration:** All EMA filters in scheduler must use α = 1 - exp(-Δt/τ_smooth) with Δt=0.5s.
+  Previous 5 Hz α values (Δt=0.2s) would slow scheduler response by 2.5×.
+  - Example: For τ_smooth=2s, new α = 0.2212 (was 0.0952 at 5 Hz).
+
+**Conclusion:** Phase D.2 telemetry overhead milestone **REACHED** with 1.21 ms/frame absolute 
+penalty (1.48% relative). Reporting both metrics in paper §IV.B per WorkPlan Task 19.
+
+**PowerZ data:** 3× inference-only + 3× inference+telemetry (2 Hz) + 3× inference+telemetry (5 Hz, deprecated) 
+.db files in `05_results/power_data/`. Sync with telemetry via Unix epoch for energy/frame analysis.
+
 ## [v0.7] — 2026-04-27
 
 ### Summary
