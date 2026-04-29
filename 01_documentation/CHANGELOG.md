@@ -8,6 +8,38 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.5] — 2026-04-29
+
+### CRITICAL FIX: Wrong model deployed to Pi (model swap)
+
+**Problem:** `02_models/openvino/yolov8n_fp32/` contained the COCO pretrained
+YOLOv8n (80 classes, exported 2026-04-26T19:40) instead of the frozen baseline
+road damage detector (4 classes: D00/D10/D20/D40).
+
+**Root cause:** On 2026-04-26, model export ran against default pretrained weights
+instead of `best.pt`. The resulting COCO model was deployed to Pi and used for
+all inference runs since then.
+
+**Impact:**
+- ALL FPS measurements from 2026-04-28 overhead benchmark are INVALID
+  (wrong model, wrong output shape [1,84,8400] vs correct [1,8,8400])
+- Calibration runs (stress-ng, telemetry only) are UNAFFECTED
+- EMA parameter tuning is UNAFFECTED
+- Telemetry overhead % is still approximately valid (pipeline-level property)
+  but must be re-verified with correct model
+
+**Fix:**
+- Deployed frozen artifact `openvino_fp32/best.bin` (SHA256: 0de2334a...)
+  to `02_models/openvino/yolov8n_fp32/` on Pi
+- Renamed best.bin → yolov8n.bin, best.xml → yolov8n.xml
+- Verified: output shape [1,8,8400] ✓, D00/D10/D20/D40 ✓
+- Wrong COCO model archived as `yolov8n_fp32_WRONG_COCO/` on Pi
+
+**Required follow-up:**
+- Re-run full 6-run paired overhead benchmark with correct model
+- Update CHANGELOG v0.7.6 with new verified FPS numbers
+- Update progress report with corrected baseline FPS
+
 ## [v0.7.4] — 2026-04-29
 
 ### S1.4: Absolute path fix for run_experiment.py
