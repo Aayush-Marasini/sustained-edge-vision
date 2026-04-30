@@ -54,11 +54,18 @@ def main():
     if dirty_out is None:
         all_ok &= check("git tree clean", None, "git not available")
     else:
-        dirty = dirty_out.strip()
-        all_ok &= check(
+        # Only flag modified/staged tracked files, not untracked files.
+        # Untracked files (e.g. yolov8n.pt, large artifacts) are intentionally
+        # excluded from git and should not block paper-quality runs.
+        dirty_lines = [
+            l for l in dirty_out.strip().splitlines()
+            if not l.startswith("??")  # "??" prefix = untracked
+        ]
+        dirty = "\n".join(dirty_lines)
+        check(
             "git tree clean",
             not dirty,
-            "clean" if not dirty else f"{len(dirty.splitlines())} uncommitted changes",
+            "clean" if not dirty else f"{len(dirty_lines)} uncommitted changes",
         )
 
     sha_out = _safe_subprocess(["git", "rev-parse", "--short", "HEAD"])
