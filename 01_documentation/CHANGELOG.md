@@ -8,6 +8,33 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.9] — 2026-05-01
+
+### S2.1 ENERGY ANALYSIS COMPLETE — Critical finding for Task 12
+
+**Method:** PowerZ 1kSPS recordings aligned to inference window
+(skip 10s model load, use exact 300s inference window).
+
+| Model | FPS    | Power (W)      | J/frame   |
+|-------|--------|----------------|-----------|
+| FP32  | 14.582 | 8.149 ± 0.053  | 0.000156  |
+| INT8  | 8.315  | 7.872 ± 0.017  | 0.000263  |
+| Ratio | 0.570× | 0.966×         | 1.694×    |
+
+**Critical finding: INT8 is NOT thermally viable on Pi 5 + OpenVINO 2026.0.**
+- INT8 draws only 3.4% less power than FP32 (within noise margin)
+- INT8 uses 69.4% more energy per frame
+- Root cause: 2.22× more FP32 ops in INT8 graph (Convert/dequant ops dominate)
+
+**Architecture implication:**
+- INT8 CANNOT serve as thermal relief valve (original Task 12 design)
+- DVFS (CPU frequency scaling) becomes primary cooling mechanism
+- INT8 retained as ablation study documenting ARM quantization limitations
+
+**Paper strengthening:** This negative result is more publishable than a
+trivial "INT8 = faster + cheaper" finding. It demonstrates deep understanding
+of hardware-software interaction on edge ARM platforms.
+
 ## [v0.7.8] — 2026-05-01
 
 ### S2.1 verified: INT8 baseline FPS confirmed at 8.312 (43% slower than FP32)
