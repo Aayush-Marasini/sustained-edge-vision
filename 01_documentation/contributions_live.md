@@ -131,3 +131,15 @@ Once thermometer arrives:
 - **Standing TODO**: setup Git LFS for inference_log.csv + telemetry_raw.csv
   tracking. Defer to next hygiene pass.
 - **Next**: S2.2 configuration switcher (DVFS via cpufreq-set + model swap).
+
+### 2026-05-01 (Continued)
+- **Energy analysis complete**: INT8 draws only 3.4% less power than FP32.
+  INT8 NOT thermally viable on Pi 5 + OpenVINO 2026.0 ARM.
+- **Architecture pivot**: DVFS (CPU freq scaling) replaces INT8 as primary
+  thermal relief mechanism in Task 12 scheduler design.
+- **INT8 retained as ablation**: Documents ARM quantization limitation.
+  Strengthens paper empirical rigor.
+- **Pareto figure deferred**: Need DVFS power measurements to populate all
+  operating points before meaningful Pareto plot.
+- **Next session**: Verify DVFS control on Pi, measure power at each freq
+  step, then build S2.2 config switcher.
