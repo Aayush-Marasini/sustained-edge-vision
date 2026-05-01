@@ -8,6 +8,37 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.6] — 2026-04-30
+
+### CRITICAL: Re-verified overhead with correct model AND correct workload
+
+**Context:** v0.7.5 identified that all 2026-04-28 FPS benchmarks used the wrong
+COCO pretrained model. Today's work replaced the COCO model with the frozen
+RDD baseline (SHA256: 0de2334a...) AND switched workload from test_traffic.mp4
+(temporal redundancy, hardware-optimizable) to thermal_benchmark_30fps.mp4
+(961 disjoint frames, worst-case workload per Progress Report §IV.G).
+
+### Verified (Pi 5, passive cooling, ambient 22.9-23.7°C, 2 Hz telemetry)
+
+**5-min paired benchmark (n=3 each):**
+- Inference-only:      mean = 14.579 FPS, std = 0.019
+- Inference+telemetry: mean = 14.302 FPS, std = 0.067
+- **Relative overhead: 1.90%** (target <3%, 37% margin)
+- **Absolute overhead: 1.33 ms/frame** (decoupled from compute load)
+
+### Comparison: Wrong vs Correct model (sanity check)
+- Wrong COCO model FPS:    12.396 (slower — 80 classes, more post-processing)
+- Correct RDD model FPS:   14.579 (~17% faster — 4 classes)
+- Overhead in both cases <2%, confirming pipeline-level cost (1.21-1.33 ms/frame)
+  is independent of model — exactly as predicted by IPC architecture analysis.
+
+**Conclusion:** Phase D.2 telemetry overhead milestone REACHED with correct
+model + correct worst-case workload. Foundation locked for Phase D.4 30-min
+baseline matrix runs.
+
+**PowerZ data:** 6× .db files in 05_results/power_data/ (3 inferonly + 3 withtel,
+all 2026-04-30, FP32, passive, thermal_benchmark workload).
+
 ## [v0.7.5] — 2026-04-29
 
 ### CRITICAL FIX: Wrong model deployed to Pi (model swap)
