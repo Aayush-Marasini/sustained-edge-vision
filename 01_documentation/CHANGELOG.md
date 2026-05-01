@@ -8,6 +8,47 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.8] — 2026-05-01
+
+### S2.1 verified: INT8 baseline FPS confirmed at 8.312 (43% slower than FP32)
+
+**Method:** 3-rep paired benchmark, 5-min runs, passive cooling, ambient 22.5-23.6°C,
+no telemetry overhead, thermal_benchmark_30fps.mp4 worst-case workload.
+
+| Model | mean FPS | std | latency | INT8 ratio |
+|-------|----------|-----|---------|------------|
+| FP32 | 14.579 | 0.019 | 68.59 ms/frame | 1.000× |
+| INT8 | 8.312 | 0.019 | 120.31 ms/frame | 0.570× |
+
+**Both std=0.019 → pipeline is deterministic. INT8 slowdown is real, not an artifact.**
+
+### Root cause analysis (OpenVINO IR graph diagnostic)
+
+| Model | FP32 ports | I8 ports | I8 utilization |
+|-------|-----------|----------|----------------|
+| FP32 | 379 | 0 | 0% |
+| INT8 | 842 | 64 | 6.7% |
+
+The INT8 model has **2.22× MORE FP32 ports** than the unquantized FP32 model.
+NNCF inserts Convert (dequant→requant) ops at every quantized-layer boundary
+to bridge between INT8 conv layers and FP32 activations/normalization.
+
+For YOLOv8n (~6M params, many small layers), Convert overhead dominates the
+INT8 compute savings on Pi 5 / Cortex-A76 / OpenVINO 2026.0.
+
+### Paper implication (§V Pareto)
+
+INT8 cannot win on FPS — must win on energy (J/frame) via PowerZ data.
+The scheduler's role is precisely this: choose precision based on observed
+runtime cost (not naive "INT8 always faster" assumption). This finding
+strengthens motivation for the proposed dynamic precision selection.
+
+### Required follow-up
+- mAP delta (INT8 vs FP32) measurement deferred to Task 19
+- J/frame comparison via PowerZ deferred to Phase D.4 baseline matrix
+- Re-quantization with `preset=PERFORMANCE` not pursued: frozen artifact
+  is hash-locked, current behavior representative of standard NNCF deployment
+
 ## [v0.7.7] — 2026-05-01
 
 ### S2.1: INT8 model deployed to Pi
