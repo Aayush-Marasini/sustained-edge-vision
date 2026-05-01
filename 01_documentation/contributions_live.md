@@ -114,3 +114,10 @@ Once thermometer arrives:
 - **Re-verified overhead**: 1.90% relative / 1.33 ms/frame absolute (n=3+3).
 - **Phase D.2 milestone REACHED** with correct artifacts.
 - **Next**: S2.1 INT8 deployment, then S2.2 config switcher, then Task 18 baselines.
+
+### 2026-05-01
+- **S2.1 complete**: INT8 model deployed to Pi (SHA256 74ca338c, hash verified).
+- **Anomaly documented**: INT8 8.69 FPS vs FP32 14.93 FPS (42% slower on Pi 5 ARM).
+  Documented as paper finding — INT8 win must be measured in J/frame, not FPS.
+- **Created MODELS_DEPLOYED.md** to track deployed model provenance.
+- **Next**: S2.2 configuration switcher (DVFS + model swap mechanism).
