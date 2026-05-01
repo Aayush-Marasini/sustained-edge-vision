@@ -2,3 +2,7 @@
 00_frozen_artifacts/**/*.bin filter=lfs diff=lfs merge=lfs -text
 00_frozen_artifacts/**/*.xml filter=lfs diff=lfs merge=lfs -text
 00_frozen_artifacts/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+05_results/runs/**/inference_log.csv filter=lfs diff=lfs merge=lfs -text
+05_results/runs/**/telemetry_raw.csv filter=lfs diff=lfs merge=lfs -text
+05_results/runs/**/state_vector_log.csv filter=lfs diff=lfs merge=lfs -text
+05_results/runs/**/scheduler_decisions.csv filter=lfs diff=lfs merge=lfs -text

@@ -65,7 +65,7 @@ def main():
     assert derived_csv.exists(), f"derived CSV missing at {derived_csv}"
     assert decisions_csv.exists(), f"decisions CSV missing at {decisions_csv}"
 
-    with open(derived_csv, encoding = "utf-8") as f:
+    with open(derived_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     print(f"telemetry_derived.csv: {len(rows)} rows")
     print("Last row (showing state vector is being computed):")
