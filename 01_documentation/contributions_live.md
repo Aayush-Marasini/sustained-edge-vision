@@ -121,3 +121,13 @@ Once thermometer arrives:
   Documented as paper finding — INT8 win must be measured in J/frame, not FPS.
 - **Created MODELS_DEPLOYED.md** to track deployed model provenance.
 - **Next**: S2.2 configuration switcher (DVFS + model swap mechanism).
+
+### 2026-05-01 (continued)
+- **INT8 baseline VERIFIED (n=3)**: mean=8.312 FPS, std=0.019, 43% slower than FP32.
+- **Diagnostic complete**: INT8 model has only 6.7% I8 port utilization
+  (64/948 ports). 842 FP32 ports vs 379 in FP32 model = 2.22× more FP32 work.
+- **Paper finding documented**: precision choice on Pi 5 ARM is non-trivial,
+  motivates scheduler's dynamic precision selection (proposal §3).
+- **Standing TODO**: setup Git LFS for inference_log.csv + telemetry_raw.csv
+  tracking. Defer to next hygiene pass.
+- **Next**: S2.2 configuration switcher (DVFS via cpufreq-set + model swap).
