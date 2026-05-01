@@ -8,6 +8,49 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.7.7] — 2026-05-01
+
+### S2.1: INT8 model deployed to Pi
+
+**Source:** Frozen artifact `00_frozen_artifacts/yolov8n_baseline_seed42/weights/openvino_int8/`
+- Calibration: NNCF 3.0.0 PTQ, 481 validation images (full split)
+- Exported: 2026-04-01 via `model.export(format='openvino', int8=True, data='rdd2022.yaml', fraction=1.0)`
+- SHA256 (best.bin): `74ca338c4a866cb803bb68bf39f5f798b78cd110c45f1e4c2f3a77582833df51`
+
+**Deployment:**
+- SCP'd from Windows frozen artifacts to Pi `~/sustained-edge-vision/02_models/openvino/yolov8n_int8/`
+- Renamed best.{bin,xml} → yolov8n.{bin,xml} per Pi convention
+- Hash verified post-deployment ✓
+
+**Initial verification (200 frames, passive cooling, no telemetry):**
+- Output shape: [1,8,8400] ✓ (4 RDD classes confirmed)
+- **FPS: 8.69** (latency 115.12 ms)
+
+### Anomaly: INT8 slower than FP32 (paper finding, not a bug)
+
+| Model | FPS | Latency | Notes |
+|-------|-----|---------|-------|
+| FP32 | 14.579 | 68.6 ms | n=3 paired benchmark, 2026-04-30 |
+| INT8 | 8.69 | 115.1 ms | 200-frame test, 2026-05-01 |
+
+INT8 is **42% slower** than FP32 on Pi 5 / OpenVINO 2026.0 / Cortex-A76.
+Root cause: OpenVINO ARM runtime does not effectively use SDOT/UDOT
+instructions; dequantize/quantize ops at layer boundaries dominate for
+small models. This is a documented OpenVINO ARM characteristic.
+
+**Paper implication:** The FP32 ↔ INT8 trade-off is non-trivial — INT8
+is NOT pure speedup. Selection must be based on energy/inference (J/frame)
+rather than FPS alone. This motivates the scheduler's dynamic precision
+selection (proposal §3) precisely because the choice is non-obvious.
+
+**Required follow-up:**
+- Phase D.4 baseline matrix must include both FP32 and INT8 cells
+- Energy data via PowerZ will reveal whether INT8 wins on J/frame
+- mAP delta vs FP32 measurement deferred to Task 19 metric definitions
+
+`01_documentation/MODELS_DEPLOYED.md` created to track deployed model
+provenance and verification commands.
+
 ## [v0.7.6] — 2026-04-30
 
 ### CRITICAL: Re-verified overhead with correct model AND correct workload
