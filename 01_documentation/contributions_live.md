@@ -107,3 +107,10 @@ Once thermometer arrives:
 - **S1.4 complete**: run_experiment.py run_dir now uses absolute path from __file__.
   Works from any CWD. Fixed sampling-rate-hz default to 2.0.
 - **Next**: S2.1 (INT8 model export via NNCF), then Task 12 (scheduler decision policy).
+
+### 2026-04-30
+- **Deployed correct RDD model to Pi**: SHA256 0de2334a (was wrong COCO model since 04-26).
+- **Deployed correct workload video**: thermal_benchmark_30fps.mp4 (961 disjoint frames, worst-case).
+- **Re-verified overhead**: 1.90% relative / 1.33 ms/frame absolute (n=3+3).
+- **Phase D.2 milestone REACHED** with correct artifacts.
+- **Next**: S2.1 INT8 deployment, then S2.2 config switcher, then Task 18 baselines.
