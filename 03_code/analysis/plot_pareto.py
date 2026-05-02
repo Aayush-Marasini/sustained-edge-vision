@@ -25,7 +25,7 @@ configs = [
     {"label": "S2: FP32 @ 1500 MHz\n(scheduler state)",
      "fps": 11.012, "fps_std": 0.016, "jpf": 0.484, "jpf_std": 0.002,
      "color": "#ff7f0e", "marker": "o", "pareto": True},
-    {"label": "INT8 @ 2400 MHz\n(ablation — dominated)",
+    {"label": "INT8 @ 2400 MHz\n(low INT8 utilization,\nconversion overhead)",
      "fps": 8.315,  "fps_std": 0.019, "jpf": 0.947, "jpf_std": 0.001,
      "color": "#d62728", "marker": "X", "pareto": False},
 ]
@@ -67,16 +67,20 @@ for c in configs:
 
 # Vertical separator between DVFS region and INT8
 ax.axvline(x=9.8, color="gray", linestyle=":", linewidth=1, alpha=0.6)
-ax.text(9.7, 0.39, "INT8\nregion", fontsize=8, color="gray",
-        ha="right", va="bottom")
-ax.text(9.9, 0.39, "DVFS\nregion", fontsize=8, color="steelblue",
-        ha="left", va="bottom")
-
+ax.text(9.7, 0.39, "Dominated\nregion", fontsize=8.5, color="#d62728",
+        ha="right", va="bottom", style="italic")
+ax.text(9.9, 0.39, "Pareto-optimal\nregion", fontsize=8.5, color="steelblue",
+        ha="left", va="bottom", style="italic")
+# Scheduler framing arrow
+ax.annotate("Scheduler switches\nbetween these states\nproactively",
+            xy=(12.432, 0.482), xytext=(10.5, 0.72),
+            fontsize=8, color="steelblue",
+            arrowprops=dict(arrowstyle="->", color="steelblue", lw=1.2))
 # Axes
 ax.set_xlabel("Throughput (FPS)", fontsize=12)
 ax.set_ylabel("Energy per inference (J/frame)", fontsize=12)
-ax.set_title("Pareto Analysis: DVFS Frequency Scaling vs INT8 Quantization\n"
-             "Raspberry Pi 5 · Passive Cooling · FP32 YOLOv8n · n=3 × 5-min runs",
+ax.set_title("Scheduler Configuration Space: DVFS States vs INT8 Quantization\n"
+             "Raspberry Pi 5 · Passive Cooling · FP32 YOLOv8n · n=3 × 5-min runs each",
              fontsize=11)
 ax.set_xlim(6.5, 16.8)
 ax.set_ylim(0.36, 1.05)
