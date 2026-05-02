@@ -159,3 +159,15 @@ Once thermometer arrives:
 - **Preliminary Pareto figure created**: `05_results/plots/pareto_fp32_int8_baselines.png`
 - **Next session**: 3-rep PowerZ runs at each DVFS cap (S1: 1800 MHz,
   S2: 1500 MHz) to populate scheduler action space.
+
+### 2026-05-02
+- **DVFS power profiling complete (n=3 each, 5-min runs, passive cooling)**:
+  S1@1800MHz: 12.43 FPS, 5.99W, 0.482 J/frame (−26% power, −14% J/frame vs S0)
+  S2@1500MHz: 11.01 FPS, 5.33W, 0.484 J/frame (−35% power, −13% J/frame vs S0)
+- **Paper flagship result confirmed**: DVFS is Pareto-dominant over INT8.
+  DVFS reduces BOTH power AND energy-per-frame. INT8 reduces neither.
+- **Scheduler action space locked**: {S0, S1, S2} — DVFS via scaling_max_freq.
+- **Pareto figure updated**: pareto_all_configs.png with all 4 configs.
+- **CHANGELOG v0.7.11** filed.
+- **Next**: S2.2 config switcher code, then Task 18 baselines,
+  then Task 12 scheduler decision policy.
