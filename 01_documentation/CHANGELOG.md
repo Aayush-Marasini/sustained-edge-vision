@@ -7,6 +7,46 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [v0.7.11] — 2026-05-02
+
+### S2.2: DVFS power profiling COMPLETE — paper flagship result
+
+**Method:** 3-rep × 5-min inference-only runs per configuration.
+FP32 model, thermal_benchmark_30fps.mp4, passive cooling.
+DVFS via scaling_max_freq cap on ondemand governor.
+
+| Config         | FPS          | Power (W)    | J/frame      | vs S0 power | vs S0 J/frame |
+|----------------|--------------|--------------|--------------|-------------|---------------|
+| S0 FP32@2400   | 14.582±0.019 | 8.149±0.053  | 0.559±0.004  | 1.000×      | 1.000×        |
+| INT8@2400      | 8.315±0.019  | 7.872±0.017  | 0.947±0.001  | 0.966×      | 1.694×        |
+| S1 FP32@1800   | 12.432±0.015 | 5.996±0.056  | 0.482±0.004  | 0.736×      | 0.863×        |
+| S2 FP32@1500   | 11.012±0.016 | 5.329±0.017  | 0.484±0.002  | 0.654×      | 0.866×        |
+
+**Key findings:**
+1. DVFS (S1, S2) is THERMALLY VIABLE — 26-35% power reduction
+2. DVFS (S1, S2) is ENERGY EFFICIENT — 13-14% better J/frame than S0
+3. INT8 is NOT thermally viable — only 3.4% power reduction (within noise)
+4. INT8 uses 69.4% MORE energy per frame than S0
+5. S1 and S2 are PARETO IMPROVEMENTS over S0 (lower power AND better J/frame)
+
+**Architecture confirmed:**
+- Scheduler action space: {S0, S1, S2} — DVFS only, INT8 is ablation
+- Mechanism: echo <freq> | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
+- Deployment scenario preserved: ondemand governor remains active
+
+**Paper contribution (§V.B):**
+FP32@1800MHz achieves 12.43 FPS while drawing only 5.99W — 26% less power
+than the maximum-throughput configuration. This creates a viable thermal
+management lever without INT8's catastrophic 43% throughput penalty.
+
+**Paper contribution (§VI.C ablation):**
+INT8 quantization on Pi 5/OpenVINO 2026.0/Cortex-A76 increases energy
+per frame by 69.4% despite 43% slower inference. Root cause: 2.22× more
+FP32 operations due to Convert/dequant overhead at quantized layer
+boundaries (confirmed via IR graph analysis: 64 I8 ports vs 842 FP32
+ports). This proves precision-cascade HCC as originally designed would
+INCREASE energy burden on this hardware stack.
+
 ## [v0.7.10] — 2026-05-01
 
 ### S2.1 final: Energy verified, DVFS profiled, J/frame units corrected
