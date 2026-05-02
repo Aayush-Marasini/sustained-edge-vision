@@ -7,6 +7,63 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [v0.7.10] — 2026-05-01
+
+### S2.1 final: Energy verified, DVFS profiled, J/frame units corrected
+
+**J/frame unit fix:** Original analysis used PowerZ ENERGY column directly,
+which has scaling factor != Joules. Corrected to compute as P_avg / FPS.
+
+| Model | FPS    | Power (W)     | J/frame |
+|-------|--------|---------------|---------|
+| FP32  | 14.582 | 8.149 ± 0.053 | 0.559   |
+| INT8  | 8.315  | 7.872 ± 0.017 | 0.947   |
+| Ratio | 0.570× | 0.966×        | 1.694×  |
+
+**Critical finding (CONFIRMED):** INT8 not thermally viable.
+- INT8 draws only 3.4% less power (within noise margin)
+- INT8 uses 69.4% more energy per frame
+- Root cause: 2.22× more FP32 ops in INT8 graph (Convert/dequant overhead)
+- Power equation P ∝ C·V²·f: changing precision doesn't change V or f,
+  so power stays constant
+
+### DVFS frequency profiling (200-frame quick test, FP32, ondemand)
+
+| Frequency | Latency  | FPS    | FPS/freq linearity |
+|-----------|----------|--------|--------------------|
+| 2400 MHz  | 63.94 ms | 15.64  | 1.000× (baseline)  |
+| 1800 MHz  | 75.93 ms | 13.17  | 0.842× (ratio 0.75)|
+| 1500 MHz  | 86.32 ms | 11.58  | 0.740× (ratio 0.625)|
+
+FPS scales near-linearly with frequency → workload is compute-bound.
+This is a CONTINUOUS control knob (vs INT8's discrete cliff).
+
+### Architecture decision
+
+**DVFS is the primary thermal control mechanism.** Scheduler implementation
+uses `scaling_max_freq` to cap `ondemand` governor (preserves deployment
+scenario per EXPERIMENTAL_PROTOCOL.md).
+
+Configuration space:
+- S0 (Max): cap 2400 MHz, ~15.6 FPS, max thermal
+- S1 (Med): cap 1800 MHz, ~13.2 FPS, moderate thermal
+- S2 (Low): cap 1500 MHz, ~11.6 FPS, minimum thermal
+
+INT8 retained as ablation in §V demonstrating ARM quantization limitation.
+
+### HCC mechanism implication
+
+Per proposal §6, HCC was designed to escalate INT8 → FP32 on low-confidence
+detections, with bounded cost ΔE_HCC = N_HCC(E_high - E_low).
+
+**Energy data inverts the inequality:** E_INT8 (0.947 J/frame) > E_FP32
+(0.559 J/frame). HCC as originally designed would stack the two MOST
+expensive operations.
+
+**Resolution:** HCC reframed in §VI.C as ablation showing why precision-
+cascade is a parasitic cost on unaccelerated edge CPUs. New HCC mechanism
+operates on DVFS instead: temporarily boost from low-freq to high-freq
+when low-confidence detection occurs.
 
 ## [v0.7.9] — 2026-05-01
 
