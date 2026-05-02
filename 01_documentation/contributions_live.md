@@ -143,3 +143,19 @@ Once thermometer arrives:
   operating points before meaningful Pareto plot.
 - **Next session**: Verify DVFS control on Pi, measure power at each freq
   step, then build S2.2 config switcher.
+
+  ### 2026-05-01 (continued)
+- **J/frame unit bug fixed**: was using cumulative ENERGY column with
+  unknown scaling factor; now computes as P_avg / FPS. Correct values:
+  FP32 = 0.559 J/frame, INT8 = 0.947 J/frame.
+- **DVFS profile (200-frame quick test, FP32)**:
+  2400 MHz → 15.64 FPS, 1800 MHz → 13.17 FPS, 1500 MHz → 11.58 FPS.
+  Near-linear scaling confirms compute-bound workload.
+- **Architecture pivot complete**: scheduler uses `scaling_max_freq` cap
+  on `ondemand` governor (preserves deployment scenario per protocol).
+- **HCC redesign**: original INT8↔FP32 cascade is energy-inverted on this
+  hardware. New HCC operates on DVFS: low-freq to high-freq escalation on
+  low-confidence detections.
+- **Preliminary Pareto figure created**: `05_results/plots/pareto_fp32_int8_baselines.png`
+- **Next session**: 3-rep PowerZ runs at each DVFS cap (S1: 1800 MHz,
+  S2: 1500 MHz) to populate scheduler action space.
