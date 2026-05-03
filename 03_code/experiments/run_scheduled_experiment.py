@@ -110,6 +110,9 @@ def main() -> int:
     p.add_argument("--model",          type=Path, default=DEFAULT_MODEL)
     p.add_argument("--video",          type=Path, default=DEFAULT_VIDEO)
     p.add_argument("--sampling-rate-hz", type=float, default=2.0)
+    p.add_argument("--scheduler-mode", default="proactive",
+                   choices=["proactive", "reactive_threshold"],
+                   help="Scheduler policy to use.")
     args = p.parse_args()
 
     # ---- preflight ----------------------------------------------------------
@@ -139,7 +142,7 @@ def main() -> int:
         "workload":           f"{args.workload}_stress",
         "phase":              "task21_pilot" if args.duration <= 700 else "task22_longrun",
         "dvfs_initial_state": args.state,
-        "scheduler":          "proactive_thermal",
+        "scheduler":          args.scheduler_mode,    # ← was hardcoded "proactive_thermal"
         "rep":                args.rep,
         "duration_min":       int(args.duration / 60),
     }
@@ -185,6 +188,7 @@ def main() -> int:
         run_dir                = str(run_dir),
         telemetry_queue        = telemetry_queue,
         shared_start_monotonic = shared_start_monotonic,
+        scheduler_mode         = args.scheduler_mode,
     )
     print("Starting scheduler...")
     scheduler.start()

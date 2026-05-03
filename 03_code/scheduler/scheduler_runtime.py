@@ -42,6 +42,11 @@ from scheduler.thermal_scheduler import (                     # type: ignore
     SchedulerState,
     decide as thermal_decide,
 )
+from scheduler.reactive_threshold_scheduler import (   # type: ignore
+    DEFAULT_REACTIVE_CONFIG,
+    ReactiveThresholdState,
+    decide_reactive,
+)
 from scheduler.dvfs_control import (                          # type: ignore
     DvfsError,
     set_state_by_name,
@@ -93,6 +98,7 @@ class SchedulerRuntime:
         telemetry_queue: mp.Queue,
         flush_every_n_samples: int = 10,
         shared_start_monotonic: float = 0.0,
+        scheduler_mode: str = "proactive",
     ):
         """
         Parameters
@@ -122,6 +128,7 @@ class SchedulerRuntime:
 
         self._process: Optional[mp.Process] = None
         self._stop_event: Optional[mp.Event] = None
+        self.scheduler_mode = scheduler_mode
 
     def start(self) -> None:
         if self._process is not None:
@@ -136,6 +143,7 @@ class SchedulerRuntime:
                 self._stop_event,
                 self.flush_every_n_samples,
                 self.shared_start_monotonic,
+                self.scheduler_mode,
             ),
             daemon=False,
             name="scheduler_runtime",
@@ -164,6 +172,7 @@ def _scheduler_worker(
     stop_event: mp.Event,
     flush_every_n_samples: int,
     shared_start_monotonic: float,
+    scheduler_mode: str = "proactive",   # "proactive" or "reactive_threshold"
 ) -> None:
     """
     Worker entry point. Runs in a separate process.
@@ -197,8 +206,12 @@ def _scheduler_worker(
     builder = StateVectorBuilder()
 
     # Task 12 policy state — one instance per run, lives in this process
-    policy_state        = SchedulerState()
-    current_dvfs_state  = DvfsState.S0.value   # tracks last applied state
+    if scheduler_mode == "reactive_threshold":
+        policy_state       = ReactiveThresholdState()
+        current_dvfs_state = "S0"
+    else:
+        policy_state       = SchedulerState()
+        current_dvfs_state = DvfsState.S0.value
 
     derived_file   = open(derived_path,   "w", newline="", encoding="utf-8")
     decisions_file = open(decisions_path, "w", newline="", encoding="utf-8")
@@ -249,14 +262,22 @@ def _scheduler_worker(
             T_dot_v = state.get("T_dot")
             thr_now = sample.get("throttled_now")
 
-            new_state, reason = thermal_decide(
-                T             = T_val,
-                T_dot         = T_dot_v,
-                throttled_now = (int(thr_now) if thr_now is not None else None),
-                sched_state   = policy_state,
-                config        = DEFAULT_SCHEDULER_CONFIG,
-                now_monotonic = sample.get("monotonic_offset_s"),
-            )
+            if scheduler_mode == "reactive_threshold":
+                new_state, reason = decide_reactive(
+                    T             = T_val,
+                    throttled_now = (int(thr_now) if thr_now is not None else None),
+                    sched_state   = policy_state,
+                    config        = DEFAULT_REACTIVE_CONFIG,
+                )
+            else:
+                new_state, reason = thermal_decide(
+                    T             = T_val,
+                    T_dot         = T_dot_v,
+                    throttled_now = (int(thr_now) if thr_now is not None else None),
+                    sched_state   = policy_state,
+                    config        = DEFAULT_SCHEDULER_CONFIG,
+                    now_monotonic = sample.get("monotonic_offset_s"),
+                )
 
             # ---- Apply DVFS if state changed --------------------------------
             if new_state.value != current_dvfs_state:
