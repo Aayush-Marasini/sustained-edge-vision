@@ -76,8 +76,8 @@ def main():
         decisions = list(csv.DictReader(f))
     print(f"\nscheduler_decisions.csv: {len(decisions)} rows")
     for d in decisions:
-        print(f"  t={d['monotonic_offset_s']}s reason={d['reason']} "
-              f"config={d['config_resolution']}/{d['config_precision']}/{d['config_fps_cap']}")
+        print(f"  t={d['monotonic_offset_s']}s reason={d['reason']:30s} "
+              f"dvfs={d['dvfs_state']}  T={d['T']}  T_dot={d['T_dot']}")
 
     # Basic correctness: T_dot should be positive (we fed a rising ramp).
     # Find a row where T_dot is populated.

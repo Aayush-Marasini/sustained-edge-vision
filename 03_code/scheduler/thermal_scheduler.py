@@ -46,7 +46,6 @@ Paper contribution
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -141,9 +140,19 @@ class DecisionReason(str, Enum):
 
 @dataclass
 class SchedulerState:
-    """Runtime state of the scheduler. Serializable for logging."""
+    """
+    Runtime state of the scheduler. Serializable for logging.
+
+    NOTE on time domain:
+      last_switch_monotonic is in the SAME time domain as the
+      `now_monotonic` arg passed to decide(). In production this is
+      `monotonic_offset_s` (offset from run start, starts at 0.0).
+      Default 0.0 means "the last switch happened at run start" —
+      so dwell is in effect for the first dwell_time_s seconds.
+      This is the desired behavior: do not switch immediately on boot.
+    """
     current_state: DvfsState = DvfsState.S0
-    last_switch_monotonic: float = field(default_factory=time.monotonic)
+    last_switch_monotonic: float = 0.0
     escalate_confirm_count: int = 0   # consecutive samples requesting escalation
     recover_confirm_count: int = 0    # consecutive samples requesting recovery
     total_decisions: int = 0
@@ -191,7 +200,13 @@ def decide(
     .escalate_confirm_count, .recover_confirm_count, .total_decisions,
     .total_state_changes, .throttled_events_observed.
     """
-    now = now_monotonic if now_monotonic is not None else time.monotonic()
+    if now_monotonic is None:
+        raise ValueError(
+            "now_monotonic must be provided explicitly (pass "
+            "monotonic_offset_s from the telemetry sample). "
+            "time.monotonic() lives in a different time domain."
+        )
+    now = now_monotonic
     sched_state.total_decisions += 1
 
     # Track throttle events for paper metric
