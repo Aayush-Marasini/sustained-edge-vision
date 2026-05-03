@@ -1,0 +1,85 @@
+{
+  "schema_version": "0.2",
+  "start_time_utc": "2026-05-03T02:16:31.370223+00:00",
+  "csv_path": "/home/raspberrypi/sustained-edge-vision/05_results/runs/2026-05-03_021631_thermalval_S1/telemetry_raw.csv",
+  "sampling_rate_hz": 2.0,
+  "duration_sec": 1800.0,
+  "ambient_temp_c": 23.0,
+  "cooling_condition": "passive",
+  "seed": 42,
+  "tags": {
+    "workload": "thermalval_S1",
+    "phase": "task20_config_profiling",
+    "dvfs_state": "S1",
+    "dvfs_cap_khz": 1800000,
+    "rep": 1,
+    "duration_min": 30,
+    "purpose": "30min_thermal_validation"
+  },
+  "git": {
+    "sha": "3663e2340d485a8aed7bb65b03464d8b1d0ac77a",
+    "branch": "main",
+    "dirty": true
+  },
+  "hardware": {
+    "hostname": "rpi5",
+    "pi_model": "Raspberry Pi 5 Model B Rev 1.1",
+    "firmware": "2025/11/27 13:40:26 \nCopyright (c) 2012 Broadcom\nversion 999d0ec9 (release) (embedded)",
+    "kernel": "Linux rpi5 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64 GNU/Linux",
+    "cpu_governor": "ondemand",
+    "arm_freq_config": "arm_freq=2400"
+  },
+  "software": {
+    "python_version": "3.13.5 (main, Jun 25 2025, 18:55:22) [GCC 14.2.0]",
+    "platform": "Linux-6.12.75+rpt-rpi-2712-aarch64-with-glibc2.41",
+    "psutil_version": "7.2.2",
+    "numpy_version": "2.4.4"
+  },
+  "dht11_pin": 4,
+  "ambient_dht11_start": {
+    "temperature_c": 23.3,
+    "humidity_percent": 50.3,
+    "n_successful": 3,
+    "n_attempts": 8,
+    "sensor": "DHT11",
+    "accuracy_note": "+/- 2 C, 1 C resolution; logging only, do not feed scheduler"
+  },
+  "end_time_utc": "2026-05-03T02:46:30.867640+00:00",
+  "samples_collected": 3600,
+  "ambient_dht11_end": {
+    "temperature_c": 23.3,
+    "humidity_percent": 50.3,
+    "n_successful": 3,
+    "n_attempts": 4,
+    "sensor": "DHT11",
+    "accuracy_note": "+/- 2 C, 1 C resolution; logging only, do not feed scheduler"
+  },
+  "samples_expected": 3599,
+  "failure_counts": {
+    "temp_soc": 0,
+    "volt_core": 0,
+    "cpu_util": 0,
+    "mem_util": 0,
+    "cpu_freq": 0,
+    "throttled": 0,
+    "scheduler_queue_drops": 0
+  },
+  "slow_signal_decimation_factor": 5,
+  "effective_sampling_rate_hz": {
+    "fast_signals": 2.0,
+    "slow_signals": 0.4
+  },
+  "slow_signals": [
+    "volt_core_v",
+    "throttle_raw",
+    "throttled_now",
+    "undervolt_now"
+  ],
+  "trace_quality": {
+    "samples_collected": 3600,
+    "samples_expected": 3599,
+    "completeness": 1.0003,
+    "sensor_failure_rate": 0.0,
+    "scheduler_queue_drop_count": 0
+  }
+}

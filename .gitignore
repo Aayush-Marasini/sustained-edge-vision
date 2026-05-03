@@ -39,22 +39,22 @@ Thumbs.db
 desktop.ini
 
 # ---- Experiment outputs ----
-# Run directories are excluded by default (large raw data)
-05_results/runs/
+# Strategy: ignore run dirs at the directory level to block bulk-adds,
+# but whitelist specific per-run files for LFS tracking.
+# Git cannot un-ignore files inside an ignored directory via ! rules,
+# so we must NOT ignore the runs/ dir itself — only its unlisted contents.
+05_results/runs/**
+!05_results/runs/
 !05_results/runs/*/
 !05_results/runs/README.md
-!05_results/runs/**/inference_log.csv
-!05_results/runs/**/telemetry_raw.csv
-!05_results/runs/**/state_vector_log.csv
-!05_results/runs/**/scheduler_decisions.csv
-!05_results/runs/**/run_metadata.json
-!05_results/runs/**/metadata.json
-!05_results/runs/*/telemetry_raw.csv
 !05_results/runs/*/inference_log.csv
+!05_results/runs/*/telemetry_raw.csv
 !05_results/runs/*/run_metadata.json
 !05_results/runs/*/run_metadata.partial.json
+!05_results/runs/*/metadata.json
 !05_results/runs/*/telemetry_derived.csv
 !05_results/runs/*/scheduler_decisions.csv
+!05_results/runs/*/state_vector_log.csv
 
 
 # ---- Temporary ----

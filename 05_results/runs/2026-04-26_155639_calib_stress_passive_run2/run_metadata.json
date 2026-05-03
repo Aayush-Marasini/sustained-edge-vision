@@ -1,0 +1,72 @@
+{
+  "schema_version": "0.2",
+  "start_time_utc": "2026-04-26T20:56:39.142444+00:00",
+  "csv_path": "../05_results/runs/2026-04-26_155639_calib_stress_passive_run2/telemetry_raw.csv",
+  "sampling_rate_hz": 5.0,
+  "duration_sec": 1800.0,
+  "ambient_temp_c": 23.0,
+  "cooling_condition": "passive",
+  "seed": 42,
+  "tags": {
+    "workload": "stress_ng_4cpu_matrixprod",
+    "purpose": "calibration",
+    "run_index": 2,
+    "phase": "B",
+    "power_recording": "2026-04-26_calib_stress_passive_run2.db"
+  },
+  "git": {
+    "sha": "27d0c0ab724fc7a27cac0fdcb5ac7a53b3ce58a4",
+    "branch": "main",
+    "dirty": false
+  },
+  "hardware": {
+    "hostname": "rpi5",
+    "pi_model": "Raspberry Pi 5 Model B Rev 1.1",
+    "firmware": "2025/11/27 13:40:26 \nCopyright (c) 2012 Broadcom\nversion 999d0ec9 (release) (embedded)",
+    "kernel": "Linux rpi5 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64 GNU/Linux",
+    "cpu_governor": "ondemand",
+    "arm_freq_config": "arm_freq=2400"
+  },
+  "software": {
+    "python_version": "3.13.5 (main, Jun 25 2025, 18:55:22) [GCC 14.2.0]",
+    "platform": "Linux-6.12.75+rpt-rpi-2712-aarch64-with-glibc2.41",
+    "psutil_version": "7.2.2",
+    "numpy_version": "2.4.4"
+  },
+  "dht11_pin": 4,
+  "ambient_dht11_start": {
+    "temperature_c": 22.7,
+    "humidity_percent": 57.7,
+    "n_successful": 3,
+    "n_attempts": 3,
+    "sensor": "DHT11",
+    "accuracy_note": "+/- 2 C, 1 C resolution; logging only, do not feed scheduler"
+  },
+  "end_time_utc": "2026-04-26T21:26:38.961197+00:00",
+  "samples_collected": 9000,
+  "ambient_dht11_end": {
+    "temperature_c": 22.9,
+    "humidity_percent": 57.7,
+    "n_successful": 3,
+    "n_attempts": 6,
+    "sensor": "DHT11",
+    "accuracy_note": "+/- 2 C, 1 C resolution; logging only, do not feed scheduler"
+  },
+  "samples_expected": 8999,
+  "failure_counts": {
+    "temp_soc": 0,
+    "volt_core": 0,
+    "cpu_util": 0,
+    "mem_util": 0,
+    "cpu_freq": 0,
+    "throttled": 0,
+    "scheduler_queue_drops": 0
+  },
+  "trace_quality": {
+    "samples_collected": 9000,
+    "samples_expected": 8999,
+    "completeness": 1.0001,
+    "sensor_failure_rate": 0.0,
+    "scheduler_queue_drop_count": 0
+  }
+}

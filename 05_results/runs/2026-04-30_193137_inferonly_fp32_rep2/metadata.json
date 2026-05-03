@@ -1,0 +1,6 @@
+{
+  "ambient_temp_c": 23.2,
+  "cooling": "passive",
+  "duration_sec": 300.0,
+  "purpose": "S1.1_overhead_benchmark_inferonly"
+}

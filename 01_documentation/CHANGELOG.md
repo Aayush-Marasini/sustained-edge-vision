@@ -7,6 +7,39 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+
+## [v0.8.2] — 2026-05-03
+
+### Corrected frequency selection rationale and EXPERIMENTAL_PROTOCOL.md update
+
+**Correction (No Silent Changes Rule):** Previous draft of frequency
+selection rationale (generated during v0.8.1 session) contained a
+dimensional error: cited σ_{T_dot} = 0.0759°C/s (derivative noise,
+units °C/s) to justify hysteresis band width (units °C). These are
+dimensionally distinct quantities with distinct roles in the control law.
+
+**Corrected values (measured from Phase B calibration):**
+- σ_T = 0.5835°C (absolute temperature sensor noise, idle run,
+  stable window t > 120s, 2026-04-25_234547_calib_idle_passive_run1)
+- 3·σ_T = 1.75°C (minimum hysteresis band floor)
+- S1/S2 plateau gap = 8.2°C = 4.7× above floor ✓
+- σ_{T_dot} = 0.0759°C/s (derivative noise) → governs proactive
+  trigger threshold only, not hysteresis width
+
+**Note on stress run σ_T:** σ_T computed from stress run = 5.1492°C.
+This is NOT sensor noise — it is thermal signal variance from a
+rising temperature trajectory. The correct noise baseline is the
+idle run stable window (σ_T = 0.5835°C).
+
+**EXPERIMENTAL_PROTOCOL.md changes:**
+- Replaced [INSERT THERMOMETER MODEL] placeholder with DHT11 spec
+- Added empirical Task 20 data to configuration space table
+- Added "Frequency State Selection Rationale" section with corrected
+  σ_T-based hysteresis argument
+- Added "Throttle Detection" section documenting throttle_raw vs
+  throttled_now distinction and sticky-flag disclosure
+- No changes to any experimental decisions — documentation only
+
 ## [v0.8.1] — 2026-05-03
 
 ### S2.3: 30-min thermal validation COMPLETE — Task 20 configuration profiling
