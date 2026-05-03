@@ -202,3 +202,15 @@ Once thermometer arrives:
 - **All 22 historical run dirs now tracked in git** via gitignore fix.
 - **Repository is now clean**: no untracked paper-quality data.
 - **Next**: Task 12 — scheduler decision policy implementation.
+
+### 2026-05-03 (Continued)
+- **Task 12 COMPLETE**: thermal_scheduler.py — core paper contribution.
+  10/10 unit tests passing. All thresholds empirically grounded in Task 20
+  data (T_plateau, rise rates) and Phase B calibration (σ_T, σ_{T_dot}).
+- **scheduler_runtime.py wired**: placeholder removed, thermal_decide()
+  + dvfs_control.set_state_by_name() integrated. Decisions logged with
+  T, T_dot, reason for Task 28 ablation analysis.
+- **Next session**: Task 21 pilot test (5-15 min run with scheduler active).
+  Pull on Pi, run with sudo, verify scheduler_decisions.csv shows actual
+  state transitions. Check DVFS cap changes in real time via dvfs_control.
+  Then Task 18 baselines (Static-Max, Static-Min, reactive threshold).

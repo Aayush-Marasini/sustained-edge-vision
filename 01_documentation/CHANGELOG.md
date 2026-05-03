@@ -8,6 +8,50 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.9.0] — 2026-05-03
+
+### Task 12 COMPLETE: Proactive thermal scheduler decision policy
+
+**Added:** `03_code/scheduler/thermal_scheduler.py`
+Core paper contribution. Implements the proactive, state-aware DVFS
+scheduler replacing `_decide_config_placeholder()`.
+
+**Policy design (all values empirically grounded):**
+
+| Parameter | Value | Derivation |
+|-----------|-------|------------|
+| T_escalate_S0→S1 | 75.0°C | S0 T_plateau=84.9°C − 9.9°C headroom (>τ_thermal at 5.83°C/min rise) |
+| T_escalate_S1→S2 | 79.0°C | S1 T_plateau=81.3°C − 2.3°C headroom (~40s at 3.39°C/min rise) |
+| T_recover_S2→S1 | 71.0°C | Gap from T_esc_S1S2 = 8.0°C = 13.7×σ_T |
+| T_recover_S1→S0 | 68.0°C | Gap from T_esc_S0S1 = 7.0°C = 12.0×σ_T |
+| T_dot_proactive | 0.5°C/s | 6.6×σ_{T_dot}=0.0759°C/s — strong rising signal only |
+| T_dot_concern_floor | 65.0°C | Below this, T_dot cannot reach threshold within τ_thermal |
+| dwell_time_s | 20.0s | 2×τ_thermal=10s — heatsink response margin |
+| n_confirm | 3 samples | 1.5s at 2 Hz — rejects sub-second transients |
+
+**Safety invariants (never violated):**
+1. ΔT_hyst > 3·σ_T = 1.75°C for all threshold pairs ✓
+2. dwell_time_s = 20s ≥ 2·τ_thermal ✓
+3. N_confirm = 3 before any escalation ✓
+4. One step at a time: S0→S1→S2, never skip ✓
+5. Recovery also requires N_confirm (no premature step-up) ✓
+
+**Key distinction (σ_T vs σ_{T_dot}):**
+- σ_T = 0.5835°C governs hysteresis band width (absolute °C)
+- σ_{T_dot} = 0.0759°C/s governs proactive trigger threshold (°C/s)
+These are dimensionally distinct; mixing them is a measurement error.
+
+**Tests:** 10/10 passing (`tests/test_thermal_scheduler.py`)
+
+**scheduler_runtime.py:** wired to thermal_scheduler.decide() + dvfs_control.
+_decide_config_placeholder() removed. scheduler_decisions.csv schema updated:
+{dvfs_state, reason, T, T_dot, throttled_now} replaces {config_resolution,
+config_precision, config_fps_cap}.
+
+**No Silent Changes Rule:** scheduler_decisions.csv column schema changed.
+Any analysis script reading old columns will break — update before running
+Task 21 pilot tests. Old placeholder runs have no paper-quality decision data.
+
 ## [v0.8.2] — 2026-05-03
 
 ### Corrected frequency selection rationale and EXPERIMENTAL_PROTOCOL.md update

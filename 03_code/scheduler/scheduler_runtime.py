@@ -1,44 +1,26 @@
 """
 scheduler_runtime.py
 ====================
-Minimal scheduler runtime showing how telemetry, derivatives, and
-(future) policy logic connect.
-
-Scope
------
-This file delivers the *consumer plumbing* for Task 10 -> Task 11
-handoff: it drains the telemetry queue, runs the state-vector builder,
-and writes telemetry_derived.csv and scheduler_decisions.csv. It does
-NOT yet implement the full decision policy c*(t) = arg min (...) from
-proposal_v2.pdf §5. That arrives in Task 12 and will replace the
-placeholder _decide_config() below.
+Scheduler runtime: drains telemetry queue, computes state vector,
+runs Task 12 proactive thermal decision policy, applies DVFS, and
+writes telemetry_derived.csv and scheduler_decisions.csv.
 
 Grounding
 ---------
-- WorkPlan_marked.pdf Task 11 (§6.3): implement the scheduler state
-  representation; test signal stability under idle and stress.
-- WorkPlan_marked.pdf Task 12 (§6.4): implement the decision policy
-  with hysteresis and dwell-time safeguards. [PENDING]
-- proposal_v2.pdf §4: state vector s(t).
-- proposal_v2.pdf §5: dynamic cost function. [PENDING - placeholder]
+- WorkPlan Task 11 (§6.3): state vector s(t) via StateVectorBuilder.
+- WorkPlan Task 12 (§6.4): decision policy with hysteresis and
+  dwell-time safeguards — implemented in thermal_scheduler.py,
+  wired here. Placeholder removed 2026-05-03.
+- proposal_v2.pdf §4: state vector definition.
+- proposal_v2.pdf §5: dynamic cost function basis for thresholds.
 
-Usage (single-machine demo)
----------------------------
-    import multiprocessing as mp
-    from telemetry_pipeline import TelemetryPipeline
-    from scheduler_runtime import SchedulerRuntime
-
-    q = mp.Queue(maxsize=100)
-    tel = TelemetryPipeline(run_dir="05_results/runs/foo", scheduler_queue=q)
-    tel.start()
-
-    sched = SchedulerRuntime(run_dir="05_results/runs/foo", telemetry_queue=q)
-    sched.start()
-
-    time.sleep(60)
-
-    sched.stop()
-    tel.stop()
+No Silent Changes Rule
+----------------------
+scheduler_decisions.csv column schema changed in v0.9.0:
+  OLD: config_resolution, config_precision, config_fps_cap, reason
+  NEW: dvfs_state, reason, T, T_dot, throttled_now
+Any analysis script reading old columns must be updated before
+running Task 21 pilot tests.
 """
 
 from __future__ import annotations
@@ -53,12 +35,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
-from scheduler.derivatives import StateVectorBuilder  # type: ignore
+from scheduler.derivatives import StateVectorBuilder          # type: ignore
+from scheduler.thermal_scheduler import (                     # type: ignore
+    DEFAULT_SCHEDULER_CONFIG,
+    DvfsState,
+    SchedulerState,
+    decide as thermal_decide,
+)
+from scheduler.dvfs_control import (                          # type: ignore
+    DvfsError,
+    set_state_by_name,
+    restore_max,
+)
 
 log = logging.getLogger(__name__)
 
 
-# Columns of telemetry_derived.csv. Stable; do not change silently.
+# ---------------------------------------------------------------------------
+# CSV column schemas — change here requires CHANGELOG entry
+# ---------------------------------------------------------------------------
+
 _DERIVED_FIELDNAMES = [
     "monotonic_offset_s",
     "utc_timestamp",
@@ -69,21 +65,26 @@ _DERIVED_FIELDNAMES = [
     "mem",
 ]
 
-# Columns of scheduler_decisions.csv. Stable; do not change silently.
 _DECISION_FIELDNAMES = [
     "monotonic_offset_s",
     "utc_timestamp",
-    "config_resolution",
-    "config_precision",
-    "config_fps_cap",
+    "dvfs_state",
     "reason",
+    "T",
+    "T_dot",
+    "throttled_now",
 ]
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 class SchedulerRuntime:
     """
-    Drains the telemetry queue, computes the state vector, and writes
-    two sibling CSVs (derived telemetry and scheduler decisions).
+    Drains the telemetry queue, computes the state vector, runs the
+    Task 12 thermal decision policy, applies DVFS via dvfs_control,
+    and writes telemetry_derived.csv + scheduler_decisions.csv.
     """
 
     def __init__(
@@ -94,15 +95,21 @@ class SchedulerRuntime:
         shared_start_monotonic: float = 0.0,
     ):
         """
+        Parameters
+        ----------
+        run_dir : str
+            Directory where output CSVs are written (same as telemetry run_dir).
+        telemetry_queue : mp.Queue
+            Queue populated by TelemetryPipeline. Each item is a dict
+            with keys matching telemetry_raw.csv columns plus
+            'monotonic_offset_s' and 'utc_timestamp'.
+        flush_every_n_samples : int
+            How often to flush both output files to disk.
         shared_start_monotonic : float
-            The telemetry pipeline's monotonic-clock start reference
-            (from TelemetryPipeline.shared_start_monotonic). All
-            'monotonic_offset_s' values in scheduler_decisions.csv will
-            be expressed relative to this anchor, so the four per-run
-            CSVs (telemetry_raw, telemetry_derived, scheduler_decisions,
-            inference_events) share a common time base. If 0.0, the
-            scheduler will fall back to its own time origin (degraded;
-            only acceptable for unit tests).
+            Monotonic-clock reference from TelemetryPipeline.
+            All 'monotonic_offset_s' values in output CSVs are offsets
+            from this anchor so all four per-run CSVs share one time base.
+            Pass 0.0 only in unit tests (degraded mode).
         """
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -110,7 +117,7 @@ class SchedulerRuntime:
         self.flush_every_n_samples = flush_every_n_samples
         self.shared_start_monotonic = shared_start_monotonic
 
-        self.derived_csv_path = self.run_dir / "telemetry_derived.csv"
+        self.derived_csv_path   = self.run_dir / "telemetry_derived.csv"
         self.decisions_csv_path = self.run_dir / "scheduler_decisions.csv"
 
         self._process: Optional[mp.Process] = None
@@ -119,10 +126,9 @@ class SchedulerRuntime:
     def start(self) -> None:
         if self._process is not None:
             raise RuntimeError("SchedulerRuntime already started")
-
         self._stop_event = mp.Event()
         self._process = mp.Process(
-            target=_scheduler_worker_entry,
+            target=_scheduler_worker,
             args=(
                 str(self.derived_csv_path),
                 str(self.decisions_csv_path),
@@ -147,18 +153,11 @@ class SchedulerRuntime:
         self._process = None
 
 
-# -- Worker process -----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Worker process
+# ---------------------------------------------------------------------------
 
-
-# Placeholder configuration (Task 12 will replace this entire mechanism).
-_DEFAULT_CONFIG = {
-    "config_resolution": 640,
-    "config_precision": "int8",
-    "config_fps_cap": 30,
-}
-
-
-def _scheduler_worker_entry(
+def _scheduler_worker(
     derived_csv_path_str: str,
     decisions_csv_path_str: str,
     telemetry_queue: mp.Queue,
@@ -166,46 +165,66 @@ def _scheduler_worker_entry(
     flush_every_n_samples: int,
     shared_start_monotonic: float,
 ) -> None:
-    """Worker entry point: drain queue, compute derivatives, log both files."""
+    """
+    Worker entry point. Runs in a separate process.
+
+    Responsibilities:
+      1. Drain telemetry_queue sample by sample.
+      2. Feed each sample to StateVectorBuilder → state vector s(t).
+      3. Pass T, T_dot, throttled_now to thermal_decide().
+      4. If decision differs from current DVFS state, call
+         dvfs_control.set_state_by_name() to apply the cap.
+      5. Write every sample to telemetry_derived.csv.
+      6. Write every decision to scheduler_decisions.csv.
+
+    DVFS restoration on exit:
+      restore_max() is called in the finally block so the frequency cap
+      is always reset to S0 (2400 MHz) even if the worker crashes.
+      run_thermal_validation.py also calls restore_max() in its own
+      finally block — double restoration is safe (idempotent write).
+    """
 
     def _handle_signal(signum, frame):
         stop_event.set()
 
     signal.signal(signal.SIGTERM, _handle_signal)
-    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGINT,  _handle_signal)
 
-    derived_path = Path(derived_csv_path_str)
+    derived_path   = Path(derived_csv_path_str)
     decisions_path = Path(decisions_csv_path_str)
 
+    # State vector builder (EMA derivatives, DEFAULT_CONFIG_2HZ)
     builder = StateVectorBuilder()
 
-    derived_file = open(derived_path, "w", newline="", encoding="utf-8")
-    derived_writer = csv.DictWriter(derived_file, fieldnames=_DERIVED_FIELDNAMES)
-    derived_writer.writeheader()
+    # Task 12 policy state — one instance per run, lives in this process
+    policy_state        = SchedulerState()
+    current_dvfs_state  = DvfsState.S0.value   # tracks last applied state
 
+    derived_file   = open(derived_path,   "w", newline="", encoding="utf-8")
     decisions_file = open(decisions_path, "w", newline="", encoding="utf-8")
+    derived_writer   = csv.DictWriter(derived_file,   fieldnames=_DERIVED_FIELDNAMES)
     decisions_writer = csv.DictWriter(decisions_file, fieldnames=_DECISION_FIELDNAMES)
+    derived_writer.writeheader()
     decisions_writer.writeheader()
 
-    # Log the initial (default) configuration so the decisions CSV always
-    # has an entry near t=0. Use telemetry's shared monotonic reference
-    # if provided, so this row aligns with telemetry_raw.csv. If the
-    # caller did not supply one (degraded mode, e.g. unit tests), fall
-    # back to a 0.0 offset and a UTC timestamp.
+    # Write boot-state row so decisions CSV always has an entry near t=0
     if shared_start_monotonic > 0.0:
         boot_offset = round(time.monotonic() - shared_start_monotonic, 6)
     else:
         boot_offset = 0.0
+
     _write_decision(
         decisions_writer,
-        monotonic_offset_s=boot_offset,
-        utc_timestamp=datetime.now(timezone.utc).isoformat(),
-        config=_DEFAULT_CONFIG,
-        reason="runtime_start_default",
+        monotonic_offset_s = boot_offset,
+        utc_timestamp      = datetime.now(timezone.utc).isoformat(),
+        dvfs_state         = DvfsState.S0.value,
+        reason             = "runtime_start_default",
+        T                  = None,
+        T_dot              = None,
+        throttled_now      = None,
     )
     decisions_file.flush()
 
-    current_config = dict(_DEFAULT_CONFIG)
     sample_count = 0
 
     try:
@@ -215,63 +234,104 @@ def _scheduler_worker_entry(
             except queue_mod.Empty:
                 continue
 
+            # ---- state vector -----------------------------------------------
             state = builder.update(sample)
 
             derived_row = {
                 "monotonic_offset_s": sample.get("monotonic_offset_s"),
-                "utc_timestamp": sample.get("utc_timestamp"),
+                "utc_timestamp":      sample.get("utc_timestamp"),
                 **{k: _round_or_none(v) for k, v in state.items()},
             }
             derived_writer.writerow(derived_row)
 
-            # Placeholder decision logic. Task 12 will replace this with
-            # the proposal §5 cost function, hysteresis, and dwell-time
-            # safeguards.
-            new_config, reason = _decide_config_placeholder(state, current_config)
-            if new_config != current_config:
-                _write_decision(
-                    decisions_writer,
-                    monotonic_offset_s=sample.get("monotonic_offset_s"),
-                    utc_timestamp=sample.get("utc_timestamp"),
-                    config=new_config,
-                    reason=reason,
-                )
-                current_config = new_config
+            # ---- Task 12 decision -------------------------------------------
+            T_val   = state.get("T")
+            T_dot_v = state.get("T_dot")
+            thr_now = sample.get("throttled_now")
+
+            new_state, reason = thermal_decide(
+                T             = T_val,
+                T_dot         = T_dot_v,
+                throttled_now = (int(thr_now) if thr_now is not None else None),
+                sched_state   = policy_state,
+                config        = DEFAULT_SCHEDULER_CONFIG,
+                now_monotonic = sample.get("monotonic_offset_s"),
+            )
+
+            # ---- Apply DVFS if state changed --------------------------------
+            if new_state.value != current_dvfs_state:
+                try:
+                    set_state_by_name(new_state.value)
+                    current_dvfs_state = new_state.value
+                    log.info(
+                        "DVFS applied: %s → %s  T=%.1f°C  T_dot=%s°C/s",
+                        current_dvfs_state, new_state.value,
+                        T_val if T_val is not None else float("nan"),
+                        f"{T_dot_v:.3f}" if T_dot_v is not None else "None",
+                    )
+                except DvfsError as exc:
+                    log.error(
+                        "DVFS apply failed (%s) — holding %s",
+                        exc, current_dvfs_state,
+                    )
+
+            # ---- Log decision -----------------------------------------------
+            _write_decision(
+                decisions_writer,
+                monotonic_offset_s = sample.get("monotonic_offset_s"),
+                utc_timestamp      = sample.get("utc_timestamp"),
+                dvfs_state         = new_state.value,
+                reason             = reason.value,
+                T                  = T_val,
+                T_dot              = T_dot_v,
+                throttled_now      = thr_now,
+            )
 
             sample_count += 1
             if sample_count % flush_every_n_samples == 0:
                 derived_file.flush()
                 decisions_file.flush()
 
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:          # pragma: no cover — defensive
         log.exception("scheduler worker crashed: %s", exc)
     finally:
         derived_file.flush()
         derived_file.close()
         decisions_file.flush()
         decisions_file.close()
+        # Restore DVFS cap to S0 on any exit path
+        try:
+            restore_max()
+            log.info("DVFS restored to S0 (2400 MHz) on worker exit.")
+        except DvfsError as exc:
+            log.error(
+                "DVFS restore FAILED on worker exit: %s — "
+                "run `sudo python dvfs_control.py --restore` manually.", exc
+            )
 
 
-def _decide_config_placeholder(
-    state: Dict[str, Optional[float]],
-    current_config: Dict,
-) -> tuple:
-    """
-    PLACEHOLDER for Task 12. Currently never changes configuration.
-    Present only so the plumbing can be tested end-to-end before the
-    real policy lands.
-    """
-    return current_config, "unchanged"
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-
-def _write_decision(writer, monotonic_offset_s, utc_timestamp, config, reason):
+def _write_decision(
+    writer,
+    monotonic_offset_s,
+    utc_timestamp,
+    dvfs_state,
+    reason,
+    T,
+    T_dot,
+    throttled_now,
+) -> None:
     writer.writerow({
         "monotonic_offset_s": monotonic_offset_s,
-        "utc_timestamp": utc_timestamp,
-        "config_resolution": config["config_resolution"],
-        "config_precision": config["config_precision"],
-        "config_fps_cap": config["config_fps_cap"],
-        "reason": reason,
+        "utc_timestamp":      utc_timestamp,
+        "dvfs_state":         dvfs_state,
+        "reason":             reason,
+        "T":                  _round_or_none(T, 3),
+        "T_dot":              _round_or_none(T_dot, 4),
+        "throttled_now":      throttled_now,
     })
 
 
