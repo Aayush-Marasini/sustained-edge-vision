@@ -8,6 +8,47 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.9.1] — 2026-05-03
+
+### Task 21 COMPLETE: Pilot scheduled run
+
+**Run:** 2026-05-03_195826_scheduled_high_S0_rep1
+**Duration:** 600s (10 min pilot)
+**Workload:** high-stress (thermal_benchmark_30fps.mp4)
+**Cooling:** passive, 22.7°C ambient
+
+**First real scheduler decision on hardware:**
+- t=167.5s: S0→S1, reason=escalate_reactive_T, T=75.189°C, T_dot=0.243°C/s
+- N_confirm correctly held at t=165.5s when T_dot briefly went negative
+- Dwell held S1 for 20s while T fell from 75.2→72°C
+- End-of-run: T=77.65°C at S1, throttled_now=0 for entire run
+
+**FPS analysis:**
+- ~167s at S0 (~14.58 FPS) + ~432s at S1 (~12.43 FPS) = ~13.0 FPS avg
+- Measured: 7602 frames / 600s = 12.67 FPS (matches prediction ✓)
+
+**System behavior confirmed:**
+- All 4 CSVs written (telemetry_raw, telemetry_derived, scheduler_decisions,
+  inference_log)
+- DVFS cap restored to S0 (2400000 kHz) on clean exit ✓
+- chown applied post-run (no git pull permission errors)
+
+**Note:** T=77.65°C at t=600s is not the S1 plateau.
+Full 30-min Task 22 runs will show true S1 plateau (~81.3°C).
+
+### Bug fixes in this version
+- thermal_scheduler.py: last_switch_monotonic=0.0 (was time.monotonic())
+- thermal_scheduler.py: now_monotonic fallback raises ValueError
+- run_scheduled_experiment.py: new harness with Queue created in parent
+
+### Protocol deviation — pilot run 2026-05-03_195826_scheduled_high_S0_rep1
+WiFi was not blocked (rfkill block wifi omitted before run).
+This is a Task 21 pilot run only — not used in any paper table or figure.
+Scientific conclusion of Task 21 (end-to-end wiring verification) is
+unaffected: all 4 CSVs written, first real DVFS decision confirmed at
+T=75.189°C t=167.5s, DVFS restored on exit.
+All Task 22 paper-quality runs will enforce WiFi block per protocol.
+
 ## [v0.9.0] — 2026-05-03
 
 ### Task 12 COMPLETE: Proactive thermal scheduler decision policy
