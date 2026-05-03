@@ -282,11 +282,12 @@ def _scheduler_worker(
             # ---- Apply DVFS if state changed --------------------------------
             if new_state.value != current_dvfs_state:
                 try:
+                    prev_dvfs_state = current_dvfs_state
                     set_state_by_name(new_state.value)
                     current_dvfs_state = new_state.value
                     log.info(
                         "DVFS applied: %s → %s  T=%.1f°C  T_dot=%s°C/s",
-                        current_dvfs_state, new_state.value,
+                        prev_dvfs_state, new_state.value,
                         T_val if T_val is not None else float("nan"),
                         f"{T_dot_v:.3f}" if T_dot_v is not None else "None",
                     )
