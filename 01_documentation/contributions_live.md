@@ -214,3 +214,12 @@ Once thermometer arrives:
   Pull on Pi, run with sudo, verify scheduler_decisions.csv shows actual
   state transitions. Check DVFS cap changes in real time via dvfs_control.
   Then Task 18 baselines (Static-Max, Static-Min, reactive threshold).
+
+  ### 2026-05-03 (Continued)
+- **Task 21 COMPLETE**: first real scheduler decision on Pi 5 hardware.
+  S0→S1 at T=75.189°C, t=167.5s. N_confirm and dwell both worked correctly.
+  No throttle events. All 4 CSVs clean. DVFS restored on exit.
+- **Next**: Task 18 baselines (Static-S0, Static-S1, Static-S2,
+  Reactive-Threshold) × n=3 reps × 30 min = 12 runs (~6 bench hours).
+  These are the comparison baselines for the main paper result.
+  Then Task 22 (30-min scheduler run × n=3).
