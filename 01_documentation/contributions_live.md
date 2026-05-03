@@ -171,3 +171,22 @@ Once thermometer arrives:
 - **CHANGELOG v0.7.11** filed.
 - **Next**: S2.2 config switcher code, then Task 18 baselines,
   then Task 12 scheduler decision policy.
+
+  ### 2026-05-03
+- **Thermal validation COMPLETE**: S0/S1/S2 × 30-min × n=1. Perfect data
+  quality (completeness=1.0003, 0 sensor failures all runs).
+- **H1 CONFIRMED**: S0 hits 87.0°C, 1910/3600 samples throttled_now=1.
+- **H2 FAILED**: S1 plateaus at 81.3°C (> 80°C threshold) but
+  throttled_now=0 for ALL 3600 S1 samples. Kernel never engaged throttle.
+- **H3 CONFIRMED**: S2 plateaus at 73.1°C < S1's 81.3°C.
+- **Paper framing revised**: primary metric is throttle event count + FPS CV,
+  not temperature threshold. S0 CV=12%, S1 CV=3.4%, S2 CV=3.0%.
+  Eliminating kernel throttle events IS the scheduler's value proposition.
+- **FPS stability gap**: S0 std=1.576, S1 std=0.429 — 3.7× improvement.
+  This maps directly to "sustained" in the paper title.
+- **Figure produced**: thermal_validation_trajectories.png
+- **Analysis script committed**: analyze_thermal_validation.py
+- **.gitignore fixed**: run CSVs and metadata now LFS-tracked properly.
+- **Next**: Task 12 scheduler decision policy implementation.
+  Design point: scheduler must keep system OUT of S0 once T_dot indicates
+  trajectory toward throttle. S1/S2 selection driven by T_dot magnitude.

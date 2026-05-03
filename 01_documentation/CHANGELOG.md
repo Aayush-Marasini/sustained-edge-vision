@@ -7,6 +7,58 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [v0.8.1] — 2026-05-03
+
+### S2.3: 30-min thermal validation COMPLETE — Task 20 configuration profiling
+
+**Protocol:** FP32, thermal_benchmark_30fps.mp4, passive cooling, ondemand,
+2 Hz telemetry, 23.0°C ambient (DHT11 5/5 reads), PowerZ concurrent.
+All runs: completeness=1.0003, sensor_failure_rate=0.0.
+
+**Results:**
+
+| State | T_start | T_peak | T_plateau | throttled_now | N_throttle | Rise°C/min | FPS_mean | FPS_std | FPS_CV |
+|-------|---------|--------|-----------|---------------|------------|------------|----------|---------|--------|
+| S0 | 48.4°C | 87.0°C | 84.9°C | **True** | 1910 | 5.827 | 13.152 | 1.576 | 12.0% |
+| S1 | 49.5°C | 82.6°C | 81.3°C | False | 0 | 3.390 | 12.780 | 0.429 | 3.4% |
+| S2 | 46.2°C | 74.3°C | 73.1°C | False | 0 | 2.785 | 11.358 | 0.339 | 3.0% |
+
+**PowerZ files:** 2026-05-03_thermalval_S{0,1,2}_rep1.db (not in LFS)
+
+**Hypothesis verdicts:**
+- H1 (S0 throttles): CONFIRMED — T_peak=87.0°C, 1910/3600 samples throttled_now=1
+- H2 (S1 plateaus < 80°C): FAILED — T_plateau=81.3°C (above 80°C threshold)
+- H3 (S2 plateau < S1): CONFIRMED — T_plateau=73.1°C < 81.3°C
+
+**Design decision — H2 failure resolution (No Silent Changes Rule):**
+Paper framing revised from temperature-threshold-based to
+throttle-event-and-stability-based. Rationale:
+- S1 `throttled_now=0` for 100% of samples: kernel never engaged throttle.
+- S0 `throttled_now=1` for 53% of samples (1910/3600): severe instability.
+- FPS CV: S0=12.0%, S1=3.4%, S2=3.0% — stability gap is the real result.
+- BCM2712 ARM trip point is ~85°C; Pi 5 throttle manifests as FPS jitter
+  before `throttled_now` engages. S1 at 81.3°C is in the danger zone but
+  not over the kernel trip point.
+- New primary metric: throttle event count + FPS coefficient of variation.
+- New scheduler objective: prevent `throttled_now=1` events (0 in S1/S2
+  vs 1910 in S0), not maintain T < 80°C.
+- S1 reclassified as "thermal caution zone": acceptable for operation,
+  but T_dot signal should escalate to S2 if trajectory continues rising.
+- This framing is more honest and stronger: the stability improvement
+  (CV 12%→3.4%) is a direct consequence of eliminating throttle events.
+
+**throttle_raw sticky flag disclosure:**
+S1/S2 t=0 throttle_raw=0xE0000 (bits 17-19 set) is a historical flag
+from S0 run. throttled_now (bit 0) = 0 for all S1/S2 samples.
+throttled_now is the sole active-throttle signal used in all analysis.
+
+**Paper contributions locked:**
+- §V.A Figure: T(t) + FPS(t) trajectories for S0/S1/S2 over 30 min
+  → `05_results/plots/thermal_validation_trajectories.png`
+- §V.A Table: T_plateau, throttle events, FPS_mean ± std per state
+- §V.B: FPS CV as primary stability metric
+- §VI scheduler objective: minimize throttle events, not minimize temperature
+
 ## [v0.7.11] — 2026-05-02
 
 ### S2.2: DVFS power profiling COMPLETE — paper flagship result

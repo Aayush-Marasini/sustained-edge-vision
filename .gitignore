@@ -40,15 +40,22 @@ desktop.ini
 
 # ---- Experiment outputs ----
 # Run directories are excluded by default (large raw data)
-05_results/runs/*/
+05_results/runs/
+!05_results/runs/*/
 !05_results/runs/README.md
-# ...except specific files tracked via Git LFS
 !05_results/runs/**/inference_log.csv
 !05_results/runs/**/telemetry_raw.csv
 !05_results/runs/**/state_vector_log.csv
 !05_results/runs/**/scheduler_decisions.csv
 !05_results/runs/**/run_metadata.json
 !05_results/runs/**/metadata.json
+!05_results/runs/*/telemetry_raw.csv
+!05_results/runs/*/inference_log.csv
+!05_results/runs/*/run_metadata.json
+!05_results/runs/*/run_metadata.partial.json
+!05_results/runs/*/telemetry_derived.csv
+!05_results/runs/*/scheduler_decisions.csv
+
 
 # ---- Temporary ----
 *.tmp

@@ -55,14 +55,22 @@ class RunPair:
 # must overlap for the join to be valid.
 
 RUNS = [
-    # FP32 inference-only (no telemetry)
-    RunPair("FP32 rep1", "2026-04-30_inferonly_fp32_rep1.db", "2026-04-30_192521_inferonly_fp32_rep1"),
-    RunPair("FP32 rep2", "2026-04-30_inferonly_fp32_rep2.db", "2026-04-30_193137_inferonly_fp32_rep2"),
-    RunPair("FP32 rep3", "2026-04-30_inferonly_fp32_rep3.db", "2026-04-30_195420_inferonly_fp32_rep3"),
-    # INT8 inference-only
-    RunPair("INT8 rep1", "2026-05-01_inferonly_int8_rep1.db", "2026-05-01_201242_inferonly_int8_rep1"),
-    RunPair("INT8 rep2", "2026-05-01_inferonly_int8_rep2.db", "2026-05-01_201926_inferonly_int8_rep2"),
-    RunPair("INT8 rep3", "2026-05-01_inferonly_int8_rep3.db", "2026-05-01_203913_inferonly_int8_rep3"),
+    # S0: FP32 @ 2400 MHz cap (ondemand, max)
+    RunPair("S0_FP32_2400 rep1", "2026-04-30_inferonly_fp32_rep1.db", "2026-04-30_192521_inferonly_fp32_rep1"),
+    RunPair("S0_FP32_2400 rep2", "2026-04-30_inferonly_fp32_rep2.db", "2026-04-30_193137_inferonly_fp32_rep2"),
+    RunPair("S0_FP32_2400 rep3", "2026-04-30_inferonly_fp32_rep3.db", "2026-04-30_195420_inferonly_fp32_rep3"),
+    # INT8 @ 2400 MHz (ablation — NOT thermally viable)
+    RunPair("INT8_2400  rep1", "2026-05-01_inferonly_int8_rep1.db", "2026-05-01_201242_inferonly_int8_rep1"),
+    RunPair("INT8_2400  rep2", "2026-05-01_inferonly_int8_rep2.db", "2026-05-01_201926_inferonly_int8_rep2"),
+    RunPair("INT8_2400  rep3", "2026-05-01_inferonly_int8_rep3.db", "2026-05-01_203913_inferonly_int8_rep3"),
+    # S1: FP32 @ 1800 MHz cap (moderate cooling state)
+    RunPair("S1_FP32_1800 rep1", "2026-05-02_inferonly_fp32_1800mhz_rep1.db", "2026-05-02_020913_inferonly_fp32_1800mhz_rep1"),
+    RunPair("S1_FP32_1800 rep2", "2026-05-02_inferonly_fp32_1800mhz_rep2.db", "2026-05-02_055730_inferonly_fp32_1800mhz_rep2"),
+    RunPair("S1_FP32_1800 rep3", "2026-05-02_inferonly_fp32_1800mhz_rep3.db", "2026-05-02_060757_inferonly_fp32_1800mhz_rep3"),
+    # S2: FP32 @ 1500 MHz cap (aggressive cooling state)
+    RunPair("S2_FP32_1500 rep1", "2026-05-02_inferonly_fp32_1500mhz_rep1.db", "2026-05-02_061905_inferonly_fp32_1500mhz_rep1"),
+    RunPair("S2_FP32_1500 rep2", "2026-05-02_inferonly_fp32_1500mhz_rep2.db", "2026-05-02_062948_inferonly_fp32_1500mhz_rep2"),
+    RunPair("S2_FP32_1500 rep3", "2026-05-02_inferonly_fp32_1500mhz_rep3.db", "2026-05-02_063959_inferonly_fp32_1500mhz_rep3"),
 ]
 
 
@@ -181,17 +189,13 @@ def analyze_run(pair: RunPair) -> dict:
     # Energy and power stats from the clean window
     duration_window_s = window_times[-1] - window_times[0]
 
-    # Get cumulative energy for this window from pz_energy
-    # Find corresponding indices in original arrays
-    w_start_unix = window_times[0]
-    w_end_unix   = window_times[-1]
-    energy_indices = [i for i, t in enumerate(pz_times)
-                      if w_start_unix <= t <= w_end_unix]
-    energy_window_j = pz_energy[energy_indices[-1]] - pz_energy[energy_indices[0]]
-
-    avg_power_w = energy_window_j / duration_window_s if duration_window_s > 0 else None
-    j_per_frame = energy_window_j / frame_count if frame_count > 0 else None
+    # Compute energy directly from power × time (don't trust ENERGY column units)
+    # E = P_avg × duration  (Joules = Watts × seconds)
+    avg_power_w    = statistics.mean(window_power)
+    energy_window_j = avg_power_w * duration_window_s
     fps_actual  = frame_count / inference_duration_s if inference_duration_s > 0 else None
+    j_per_frame    = avg_power_w / fps_actual if fps_actual else None
+    # J/frame = W / FPS  (same as W × s/frame = W / (frames/s))
 
     mean_power = statistics.mean(window_power)
     std_power  = statistics.pstdev(window_power)
@@ -252,80 +256,67 @@ def main():
                 f"{r['j_per_frame']:>10.6f} "
                 f"{r['total_energy_j']:>10.3f}")
 
-    # ── Aggregate FP32 vs INT8 ───────────────────────────────────────────────
-    fp32 = [r for r in results if "FP32" in r.get("label","") and not r.get("error")]
-    int8 = [r for r in results if "INT8" in r.get("label","") and not r.get("error")]
+    # ── Aggregate by configuration group ─────────────────────────────────────
+    def group(prefix):
+        return [r for r in results if r.get("label","").startswith(prefix) and not r.get("error")]
 
-    if fp32 and int8:
-        print()
-        print("="*75)
-        print("AGGREGATE COMPARISON")
-        print("="*75)
+    def agg(rows, key):
+        vals = [r[key] for r in rows if r.get(key) is not None]
+        if not vals:
+            return None, None
+        return statistics.mean(vals), statistics.pstdev(vals)
 
-        def agg(rows, key):
-            vals = [r[key] for r in rows if r.get(key) is not None]
-            return statistics.mean(vals), statistics.pstdev(vals)
-
-        fp32_fps,   fp32_fps_std   = agg(fp32, "fps")
-        fp32_pwr,   fp32_pwr_std   = agg(fp32, "mean_power_w")
-        fp32_jpf,   fp32_jpf_std   = agg(fp32, "j_per_frame")
-
-        int8_fps,   int8_fps_std   = agg(int8, "fps")
-        int8_pwr,   int8_pwr_std   = agg(int8, "mean_power_w")
-        int8_jpf,   int8_jpf_std   = agg(int8, "j_per_frame")
-
-        print(f"\n{'Metric':<25} {'FP32':>18} {'INT8':>18} {'Ratio (I/F)':>14}")
-        print("-"*78)
-        print(f"{'FPS':<25} {fp32_fps:>7.3f} ±{fp32_fps_std:.3f}    "
-              f"{int8_fps:>7.3f} ±{int8_fps_std:.3f}    "
-              f"{int8_fps/fp32_fps:>10.3f}×")
-        print(f"{'Avg power (W)':<25} {fp32_pwr:>7.3f} ±{fp32_pwr_std:.3f}    "
-              f"{int8_pwr:>7.3f} ±{int8_pwr_std:.3f}    "
-              f"{int8_pwr/fp32_pwr:>10.3f}×")
-        print(f"{'J/frame':<25} {fp32_jpf:>7.5f} ±{fp32_jpf_std:.5f}  "
-              f"{int8_jpf:>7.5f} ±{int8_jpf_std:.5f}  "
-              f"{int8_jpf/fp32_jpf:>10.3f}×")
-
-        print()
-        jpf_ratio = int8_jpf / fp32_jpf
-        pwr_ratio = int8_pwr / fp32_pwr
-
-        print("SCHEDULER VIABILITY ASSESSMENT:")
-        print(f"  INT8/FP32 power ratio:   {pwr_ratio:.3f}×")
-        print(f"  INT8/FP32 J/frame ratio: {jpf_ratio:.3f}×")
-        print()
-
-        if pwr_ratio < 0.80:
-            print(f"  ✓ INT8 draws {(1-pwr_ratio)*100:.1f}% less power → THERMALLY VIABLE")
-            print(f"    Switching to INT8 reduces heat dissipation by {(1-pwr_ratio)*100:.1f}%")
-        elif pwr_ratio < 0.95:
-            print(f"  ⚠ INT8 draws {(1-pwr_ratio)*100:.1f}% less power → MARGINALLY VIABLE")
-            print(f"    Small thermal benefit; scheduler should dwell in INT8 longer to help")
-        else:
-            print(f"  ✗ INT8 draws {pwr_ratio:.3f}× FP32 power → NOT THERMALLY VIABLE")
-            print(f"    INT8 won't help shed thermal load — Task 12 design must change")
-
-        if jpf_ratio < 0.95:
-            print(f"  ✓ INT8 uses {(1-jpf_ratio)*100:.1f}% less energy per frame → ENERGY EFFICIENT")
-        elif jpf_ratio < 1.10:
-            print(f"  ~ INT8 J/frame within 10% of FP32 → ENERGY NEUTRAL")
-        else:
-            print(f"  ✗ INT8 uses {(jpf_ratio-1)*100:.1f}% MORE energy per frame → ENERGY WORSE")
-
-        print()
-        print("PAPER §V PARETO IMPLICATIONS:")
-        if pwr_ratio < 0.90 and jpf_ratio > 1.05:
-            print("  INT8: lower power, higher latency, higher J/frame")
-            print("  → INT8 buys thermal headroom at cost of per-frame energy")
-            print("  → Scheduler uses INT8 during thermal stress, FP32 during normal ops")
-            print("  → This IS the non-trivial trade-off that makes the paper interesting")
-        elif pwr_ratio >= 0.95:
-            print("  INT8 provides no thermal relief → scheduler cannot use it for cooling")
-            print("  → Must redesign: use DVFS (CPU freq reduction) as primary cooling mechanism")
-            print("  → INT8 may still appear in paper as ablation to validate this finding")
+    groups = {
+        "S0 FP32@2400": group("S0_FP32_2400"),
+        "INT8@2400":     group("INT8_2400"),
+        "S1 FP32@1800":  group("S1_FP32_1800"),
+        "S2 FP32@1500":  group("S2_FP32_1500"),
+    }
 
     print()
-    print("="*75)
+    print("="*85)
+    print("DVFS CONFIGURATION COMPARISON (paper Table §V)")
+    print("="*85)
+    print(f"\n{'Config':<18} {'FPS':>12} {'Power(W)':>14} {'J/frame':>12} {'Power ratio':>13} {'J/frame ratio':>14}")
+    print("-"*86)
+
+    s0_fps, _ = agg(groups["S0 FP32@2400"], "fps")
+    s0_pwr, _ = agg(groups["S0 FP32@2400"], "mean_power_w")
+    s0_jpf, _ = agg(groups["S0 FP32@2400"], "j_per_frame")
+
+    for name, grp in groups.items():
+        fps_m, fps_s = agg(grp, "fps")
+        pwr_m, pwr_s = agg(grp, "mean_power_w")
+        jpf_m, jpf_s = agg(grp, "j_per_frame")
+        if fps_m is None:
+            print(f"  {name:<16} NO DATA")
+            continue
+        pwr_r = pwr_m / s0_pwr if s0_pwr else 0
+        jpf_r = jpf_m / s0_jpf if s0_jpf else 0
+        print(f"  {name:<16} "
+              f"{fps_m:>6.3f}±{fps_s:.3f}  "
+              f"{pwr_m:>6.3f}±{pwr_s:.3f}  "
+              f"{jpf_m:>8.4f}±{jpf_s:.4f}  "
+              f"{pwr_r:>10.3f}×  "
+              f"{jpf_r:>11.3f}×")
+
+    print()
+    print("SCHEDULER VIABILITY SUMMARY:")
+    for name, grp in groups.items():
+        if name == "S0 FP32@2400":
+            continue
+        pwr_m, _ = agg(grp, "mean_power_w")
+        jpf_m, _ = agg(grp, "j_per_frame")
+        if pwr_m is None:
+            continue
+        pwr_r = pwr_m / s0_pwr
+        jpf_r = jpf_m / s0_jpf
+        thermal = "✓ THERMALLY VIABLE" if pwr_r < 0.90 else ("⚠ MARGINAL" if pwr_r < 0.95 else "✗ NOT VIABLE")
+        energy  = "✓ ENERGY WIN" if jpf_r < 0.95 else ("~ NEUTRAL" if jpf_r < 1.10 else "✗ ENERGY WORSE")
+        print(f"  {name:<16}: power={pwr_r:.3f}× ({thermal}), J/frame={jpf_r:.3f}× ({energy})")
+
+    print()
+    print("="*85)
 
 
 if __name__ == "__main__":
