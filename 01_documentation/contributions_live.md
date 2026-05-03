@@ -190,3 +190,15 @@ Once thermometer arrives:
 - **Next**: Task 12 scheduler decision policy implementation.
   Design point: scheduler must keep system OUT of S0 once T_dot indicates
   trajectory toward throttle. S1/S2 selection driven by T_dot magnitude.
+
+  ### 2026-05-03 (continued)
+- **σ_T measured**: 0.5835°C (idle calibration, stable window).
+  3·σ_T = 1.75°C. S1/S2 gap = 8.2°C = 4.7× hysteresis floor.
+- **Dimensional error corrected**: previous rationale cited σ_{T_dot}
+  (°C/s) for hysteresis band (°C). Fixed in EXPERIMENTAL_PROTOCOL.md.
+- **EXPERIMENTAL_PROTOCOL.md finalized**: DHT11 spec filled, Task 20
+  table added, frequency selection rationale complete, throttle_raw
+  sticky-flag disclosure added.
+- **All 22 historical run dirs now tracked in git** via gitignore fix.
+- **Repository is now clean**: no untracked paper-quality data.
+- **Next**: Task 12 — scheduler decision policy implementation.
