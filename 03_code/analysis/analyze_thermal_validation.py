@@ -42,11 +42,17 @@ RUNS_ROOT    = RESULTS_ROOT / "runs"
 PLOTS_DIR    = RESULTS_ROOT / "plots"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Exact run dir names from the terminal output
+# Replace the RUN_DIRS block (around line 30) with this:
+import glob
+
+def find_runs_for_state(state: str) -> list:
+    pattern = str(RUNS_ROOT / f"*thermalval_{state}*")
+    dirs = sorted(Path(p) for p in glob.glob(pattern) if Path(p).is_dir())
+    return [d for d in dirs if (d / "telemetry_raw.csv").exists()]
+
 RUN_DIRS = {
-    "S0": RUNS_ROOT / "2026-05-03_012911_thermalval_S0",
-    "S1": RUNS_ROOT / "2026-05-03_021631_thermalval_S1",
-    "S2": RUNS_ROOT / "2026-05-03_053226_thermalval_S2",
+    state: find_runs_for_state(state)
+    for state in ["S0", "S1", "S2"]
 }
 
 THROTTLE_TEMP_C  = 80.0   # Pi 5 hardware throttle threshold
@@ -211,80 +217,65 @@ def plot_trajectories(data: dict[str, tuple]) -> Path:
 
 def main() -> None:
     print("Loading runs...")
-    summaries = {}
+    all_summaries = {"S0": [], "S1": [], "S2": []}
     plot_data = {}
 
-    for state, run_dir in RUN_DIRS.items():
-        if not run_dir.exists():
-            print(f"  MISSING: {run_dir}")
+    for state, run_dirs in RUN_DIRS.items():
+        if not run_dirs:
+            print(f"  {state}: NO RUNS FOUND")
             continue
-        print(f"  {state}: {run_dir.name}")
-        df_tel  = load_telemetry(run_dir)
-        df_inf  = load_inference(run_dir)
-        summ    = summarize(state, run_dir)
-        summaries[state] = summ
-        plot_data[state] = (df_tel, df_inf, summ)
-
-    # ---- Console table (fills CHANGELOG v0.8.1) ----------------------------
-    print("\n" + "=" * 75)
-    print("TASK 20 CONFIGURATION PROFILING — 30-MIN THERMAL VALIDATION RESULTS")
-    print("=" * 75)
-    hdr = f"{'State':<6} {'T_start':>8} {'T_peak':>8} {'T_plateau':>10} "
-    hdr += f"{'Throttled':>10} {'TTT(s)':>8} {'N_thr':>6} {'Rise°C/min':>11} {'FPS_mean':>9} {'FPS_std':>8}"
-    print(hdr)
-    print("-" * 75)
-    for state in ["S0", "S1", "S2"]:
-        if state not in summaries:
-            continue
-        s = summaries[state]
-        ttt_str = f"{s['time_to_throttle_s']:.0f}" if s['throttled'] else "—"
-        print(
-            f"{s['state']:<6} "
-            f"{s['T_start_c']:>8.1f} "
-            f"{s['T_peak_c']:>8.1f} "
-            f"{s['T_plateau_c']:>10.1f} "
-            f"{str(s['throttled']):>10} "
-            f"{ttt_str:>8} "
-            f"{s['n_throttle_samples']:>6} "
-            f"{s['rise_rate_c_per_min']:>11.3f} "
-            f"{s['fps_mean']:>9.3f} "
-            f"{s['fps_std']:>8.3f}"
+        print(f"  {state}: {len(run_dirs)} rep(s)")
+        for run_dir in run_dirs:
+            print(f"    {run_dir.name}")
+            summ = summarize(state, run_dir)
+            all_summaries[state].append(summ)
+        # For plotting, use first rep (most representative single trace)
+        plot_data[state] = (
+            load_telemetry(run_dirs[0]),
+            load_inference(run_dirs[0]),
+            all_summaries[state][0],
         )
-    print("=" * 75)
 
-    # ---- H2 verdict --------------------------------------------------------
-    print("\nHYPOTHESIS VERDICTS:")
-    if "S0" in summaries:
-        s0 = summaries["S0"]
-        h1 = s0["throttled"] or s0["T_peak_c"] >= THROTTLE_TEMP_C
-        print(f"  H1 (S0 throttles):        {'CONFIRMED' if h1 else 'FAILED'}"
-              f"  (T_peak={s0['T_peak_c']}°C, throttled_now={s0['throttled']})")
-    if "S1" in summaries:
-        s1 = summaries["S1"]
-        h2 = not s1["throttled"] and s1["T_plateau_c"] < THROTTLE_TEMP_C
-        print(f"  H2 (S1 plateaus < 80°C): {'CONFIRMED' if h2 else 'FAILED'}"
-              f"  (T_plateau={s1['T_plateau_c']}°C, throttled_now={s1['throttled']})")
-    if "S2" in summaries:
-        s2 = summaries["S2"]
-        h3 = (not s2["throttled"] and
-              ("S1" not in summaries or s2["T_plateau_c"] < summaries["S1"]["T_plateau_c"]))
-        print(f"  H3 (S2 plateau < S1):    {'CONFIRMED' if h3 else 'FAILED'}"
-              f"  (T_plateau={s2['T_plateau_c']}°C)")
+    print("\n" + "=" * 85)
+    print("TASK 20 CONFIGURATION PROFILING — MULTI-REP SUMMARY")
+    print("=" * 85)
+    hdr = (f"{'State':<6} {'N':>3} {'T_start':>8} {'T_peak':>8} {'T_plateau':>10} "
+           f"{'Throttled':>10} {'N_thr_mean':>11} {'Rise°C/min':>11} "
+           f"{'FPS_mean':>9} {'FPS_std':>8} {'FPS_CV':>7}")
+    print(hdr)
+    print("-" * 85)
+    for state in ["S0", "S1", "S2"]:
+        reps = all_summaries[state]
+        if not reps:
+            continue
+        n = len(reps)
+        fps_means   = [r["fps_mean"] for r in reps]
+        fps_stds    = [r["fps_std"]  for r in reps]
+        t_plateaus  = [r["T_plateau_c"] for r in reps]
+        t_peaks     = [r["T_peak_c"]    for r in reps]
+        n_thrs      = [r["n_throttle_samples"] for r in reps]
+        rises       = [r["rise_rate_c_per_min"] for r in reps]
+        throttled   = any(r["throttled"] for r in reps)
+        fps_cv = float(np.mean(fps_stds)) / float(np.mean(fps_means)) * 100
 
-    # ---- Figure ------------------------------------------------------------
+        print(
+            f"{state:<6} {n:>3} "
+            f"{reps[0]['T_start_c']:>8.1f} "
+            f"{float(np.mean(t_peaks)):>8.1f}±{float(np.std(t_peaks)):.1f} "
+            f"{float(np.mean(t_plateaus)):>8.1f}±{float(np.std(t_plateaus)):.1f}  "
+            f"{'Yes' if throttled else 'No':>10} "
+            f"{float(np.mean(n_thrs)):>11.0f} "
+            f"{float(np.mean(rises)):>11.3f} "
+            f"{float(np.mean(fps_means)):>9.3f} "
+            f"{float(np.mean(fps_stds)):>8.3f} "
+            f"{fps_cv:>6.1f}%"
+        )
+    print("=" * 85)
+
+    # Figure (single-rep traces)
     if plot_data:
         out = plot_trajectories(plot_data)
         print(f"\nFigure saved → {out}")
-    else:
-        print("\nNo data to plot.")
-
-    # ---- throttle_raw decode note ------------------------------------------
-    print("\nNOTE: S1/S2 show throttle_raw=917504 (0xE0000) at t=0.")
-    print("  This is a STICKY HISTORICAL FLAG from S0 run (bits 17-19: past events).")
-    print("  throttled_now (bit 0) = 0 for all S1/S2 samples — no active throttle.")
-    print("  Disclose in paper §IV.B: 'throttle_raw flags were not cleared between")
-    print("  runs; throttled_now is used exclusively for active-throttle detection.'")
-
 
 if __name__ == "__main__":
     main()
