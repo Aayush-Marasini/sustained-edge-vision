@@ -7,6 +7,24 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [v0.9.3] — 2026-05-05
+
+### Task 18 Session 2: Static baselines complete — S1 n=3, S2 n=3
+
+**B5:** 2026-05-05_171318_thermalval_S1 — 22.3°C ambient
+**B6:** 2026-05-05_180734_thermalval_S2 — 23.0°C ambient
+**B7:** 2026-05-05_200514_thermalval_S2 — 23.4°C ambient
+All: 1800s, passive, WiFi blocked, 2Hz, completeness=1.0003.
+
+Note: B5 (S1 rep3) shows throttle_raw=0 at t=0 — clean start,
+no preceding S0 run in this session. throttled_now=0 throughout
+as expected. throttle_raw sticky flag status is irrelevant to
+paper metrics (throttled_now is the sole active-throttle signal).
+
+**All static baselines now complete: S0 n=3, S1 n=3, S2 n=3.**
+Full multi-rep analysis pending (paste from analyze_thermal_validation.py).
+Next: Session 3 (Reactive-Threshold x3), Session 4 (Proactive x3).
+
 ## [v0.9.2] — 2026-05-04
 
 ### Task 18 Session 1: Static baselines S0 (n=3 complete), S1 (n=2/3)
