@@ -223,3 +223,10 @@ Once thermometer arrives:
   Reactive-Threshold) × n=3 reps × 30 min = 12 runs (~6 bench hours).
   These are the comparison baselines for the main paper result.
   Then Task 22 (30-min scheduler run × n=3).
+
+  ### 2026-05-04
+- Session 1 complete: S0 n=3, S1 n=2. Multi-rep consistency confirmed.
+- S0: T_peak 86.8±0.2°C, CV 11.9% — highly reproducible
+- S1: T_plateau 80.4±0.9°C, zero throttle both reps — consistent
+- analyze_thermal_validation.py: auto-discovers all reps via glob
+- Next: Session 2 (S1 rep3, S2 reps 2+3)

@@ -7,6 +7,28 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## [v0.9.2] — 2026-05-04
+
+### Task 18 Session 1: Static baselines S0 (n=3 complete), S1 (n=2/3)
+
+**B2:** 2026-05-04_203732_thermalval_S0 — 23.0°C ambient
+**B3:** 2026-05-05_011931_thermalval_S0 — 23.8°C ambient
+**B4:** 2026-05-05_015938_thermalval_S1 — 24.1°C ambient
+All: 1800s, passive, WiFi blocked, 2Hz, completeness=1.0003.
+
+**Multi-rep consistency check (S0 n=3):**
+  T_peak: 86.8 ± 0.2°C — excellent consistency
+  T_plateau: 84.8 ± 0.0°C — essentially identical across reps
+  N_throttle: 1823 mean — consistent with rep1 (1910)
+  FPS_mean: 13.211, FPS_std: 1.567, CV: 11.9%
+
+**Multi-rep consistency check (S1 n=2):**
+  T_plateau: 80.4 ± 0.9°C — acceptable, within  variance
+  N_throttle: 0 both reps
+  FPS_mean: 12.828, FPS_std: 0.426, CV: 3.3%
+
+**Aborted run:** 2026-05-04_212600_thermalval_S0 deleted. No damage.
+**Remaining:** S1 rep3, S2 reps 2+3, Reactive x3, Proactive x3.
 
 ## [v0.9.1] — 2026-05-03
 
