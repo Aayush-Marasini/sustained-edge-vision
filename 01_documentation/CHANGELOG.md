@@ -7,6 +7,38 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+
+## [v0.9.4] — 2026-05-06
+
+### Task 22 Session 4: Proactive scheduler n=3 COMPLETE
+
+**B11:** 2026-05-06_011427_scheduled_high_S0_rep1 — 23.4°C ambient
+  Decisions: S0→S1 t=183s (T=75.3°C), S1→S2 t=909s (T=79.0°C),
+             S2→S1 recovery t=1681s (T=71.0°C)
+
+**B12:** 2026-05-06_031811_scheduled_high_S0_rep2 — 23.8°C ambient
+  Decisions: S0→S1 t=165s (T=75.4°C), S1→S2 t=1110s (T=79.1°C)
+
+**B13:** 2026-05-06_035911_scheduled_high_S0_rep3 — 23.8°C ambient
+  Decisions: S0→S1 t=174s (T=75.1°C), S1→S2 t=1293s (T=79.1°C)
+
+All: 3601 samples, completeness=1.0003, 0 throttle events, WiFi blocked,
+DVFS restored S0 on exit.
+
+**Directory rename:** 2026-05-06_031811 was mislabeled rep1 at run time.
+Renamed to rep2. run_metadata.json rep field corrected. No data affected.
+Documented per No Silent Changes Rule.
+
+**PowerZ files:** 2026-05-05_proactive_rep{1,2,3}.db confirmed in power_data/
+
+**Core result confirmed:** Proactive scheduler used S1 in all 3 reps
+before escalating to S2. Time at S1 per rep: 726s, 945s, 1119s.
+Reactive baseline: 0s at S1, permanently in S2 from t~190s.
+
+**ALL BASELINE CAMPAIGN RUNS COMPLETE.**
+Static S0/S1/S2 n=3, Reactive-Threshold n=3, Proactive n=3 = 15 runs total.
+Next: PowerZ analysis, full results table, paper writing.
+
 ## [v0.9.3] — 2026-05-05
 
 ### Task 18 Session 2: Static baselines complete — S1 n=3, S2 n=3
