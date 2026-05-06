@@ -8,7 +8,7 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
-## [v0.9.4] — 2026-05-06
+## [v0.9.5] — 2026-05-06
 
 ### Task 22 Session 4: Proactive scheduler n=3 COMPLETE
 
