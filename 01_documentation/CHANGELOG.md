@@ -8,6 +8,29 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.9.7] — 2026-05-06
+
+### Task 19 COMPLETE: Deployed OpenVINO mAP50 measured
+
+**Result:** mAP50 = 0.538 (deployed) vs 0.533 (Ultralytics training)
+Delta = +0.005 — within measurement noise. Export validated.
+
+**Method:** 481 val images, Pi 5, OpenVINO 2026.0.0, FP32.
+NMS applied (IoU threshold=0.45) before PR curve computation.
+11-point interpolated AP per class.
+
+**Per-class:** D00=0.662, D10=0.639, D20=0.593, D40=0.258
+
+**Bug fixed:** measure_deployed_map.py was missing NMS, causing
+0.192 mAP on first run (duplicate detections inflating FP count).
+Fixed by adding per-class NMS before GT matching.
+
+**Paper implication:** mAP50=0.533 (training) is conservative.
+Deployed model achieves 0.538. Paper will cite 0.538 as the
+deployed model metric. Model output is frequency-invariant —
+one measurement applies to all scheduler conditions.
+
+
 ## [v0.9.6] — 2026-05-06
 
 ### Task 23 COMPLETE: Full results analysis — all 15 paper runs
