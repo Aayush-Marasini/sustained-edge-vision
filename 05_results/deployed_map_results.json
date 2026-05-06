@@ -1,0 +1,22 @@
+{
+  "map50_deployed_openvino": 0.538,
+  "map50_ultralytics_training": 0.533,
+  "delta": 0.005,
+  "per_class": {
+    "D00": 0.6624,
+    "D10": 0.6385,
+    "D20": 0.5931,
+    "D40": 0.258
+  },
+  "n_gt_per_class": {
+    "D00": 647,
+    "D10": 372,
+    "D20": 91,
+    "D40": 14
+  },
+  "n_images": 481,
+  "model": "/home/raspberrypi/sustained-edge-vision/02_models/openvino/yolov8n_fp32",
+  "iou_threshold": 0.5,
+  "conf_threshold": 0.001,
+  "inference_time_s": 36.0
+}

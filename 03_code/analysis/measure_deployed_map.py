@@ -45,6 +45,23 @@ def iou(box_a, box_b):
     return inter / union if union > 0 else 0.0
 
 
+
+def nms(detections, iou_thresh=0.45):
+    """Non-Maximum Suppression per class."""
+    if not detections:
+        return []
+    # Sort by confidence descending
+    detections = sorted(detections, key=lambda x: x[1], reverse=True)
+    keep = []
+    while detections:
+        best = detections.pop(0)
+        keep.append(best)
+        detections = [
+            d for d in detections
+            if d[0] != best[0] or iou(best[2], d[2]) < iou_thresh
+        ]
+    return keep
+
 def load_ground_truth(label_path: Path, img_w: int, img_h: int) -> list:
     """Load YOLO format labels → list of [cls, x1, y1, x2, y2]"""
     boxes = []
@@ -76,7 +93,7 @@ def compute_ap(recalls, precisions):
 
 def main():
     # ── Load model ────────────────────────────────────────────────────
-    from openvino.runtime import Core
+    from openvino import Core
     import cv2
 
     print("Loading OpenVINO model...")
@@ -163,6 +180,9 @@ def main():
             x1 = max(0, x1); y1 = max(0, y1)
             x2 = min(img_w_orig, x2); y2 = min(img_h_orig, y2)
             detections_img.append((int(cls), float(conf), [x1,y1,x2,y2]))
+
+        # Apply NMS
+        detections_img = nms(detections_img, iou_thresh=0.45)
 
         # Load ground truth
         label_path = VAL_LABELS / (img_path.stem + ".txt")
