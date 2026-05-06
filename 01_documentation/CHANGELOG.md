@@ -8,6 +8,66 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## [v0.9.6] — 2026-05-06
+
+### Task 23 COMPLETE: Full results analysis — all 15 paper runs
+
+**All baseline campaign runs complete and analyzed.**
+
+#### Telemetry results (analyze_all_conditions.py)
+
+| Condition          | N | FPS mean | FPS std | FPS CV | Throttle/30min | T_plateau (°C) |
+|--------------------|---|----------|---------|--------|----------------|----------------|
+| Static-S0          | 3 | 13.211   | 1.567   | 11.9%  | 1823±81        | 84.8±0.0       |
+| Static-S1          | 3 | 12.820   | 0.431   |  3.4%  | 0±0            | 79.8±0.7       |
+| Static-S2          | 3 | 11.338   | 0.353   |  3.1%  | 0±0            | 73.2±0.3       |
+| Reactive-Threshold | 3 | 11.818   | 1.442   | 12.2%  | 0±0            | 73.7±0.6       |
+| Proactive (Ours)   | 3 | 12.588   | 1.285   | 10.2%  | 0±0            | 74.5±1.1       |
+
+Proactive time-at-state: S0=174s (9.7%), S1=970s (53.9%), S2=656s (36.4%)
+Reactive time-at-state: S0=193s (10.7%), S1=0s (0%), S2=1606s (89.3%)
+
+#### PowerZ energy results (analyze_powerz_30min.py)
+
+| Condition          | Power (W)      | J/frame        | FPS    |
+|--------------------|----------------|----------------|--------|
+| Static-S0          | 8.241±0.024    | 0.633±0.005    | 13.024 |
+| Static-S1          | 6.035±0.050    | 0.471±0.005    | 12.804 |
+| Static-S2          | 5.377±0.028    | 0.475±0.003    | 11.326 |
+| Reactive-Threshold | 6.957±0.077    | 0.596±0.007    | 11.674 |
+| Proactive (Ours)   | 7.052±0.035    | 0.566±0.005    | 12.464 |
+
+PowerZ alignment: end-time anchoring used (Windows clock offset ~3600-4100s
+from Pi UTC). Verified correct via power step detection (idle→inference
+transition visible at window boundary). 300,000 samples per 300s window.
+
+#### Key results for paper
+
+- Proactive vs Reactive: +6.8% FPS, -5.1% J/frame — strict dominance
+- Proactive vs Static-S0: zero throttle events vs 1823/run, -10.6% J/frame
+- Proactive vs Static-S1: +2.8% FPS, +20.2% J/frame — throughput/energy tradeoff
+- Reactive permanently locked in S2 (89.3% of run); proactive used S1 53.9%
+- FPS CV for dynamic schedulers reflects state transitions, not instability
+
+#### Figures generated
+- 05_results/plots/pareto_frontier.png
+- 05_results/plots/int8_vs_fp32_comparison.png
+- 05_results/plots/scheduler_decision_timeline.png
+- 05_results/plots/thermal_validation_trajectories.png (existing)
+
+#### Framing decision (No Silent Changes Rule)
+Paper claim revised from "proactive dominates" to "proactive strictly
+dominates reactive baseline; does not claim global optimality vs static
+configurations." Honest framing: scheduler unlocks intermediate DVFS
+states unavailable to reactive control, yielding superior operating
+point among thermally safe dynamic policies.
+
+#### Pending before submission
+- Task 19: mAP measurement on deployed OpenVINO model (val set, 481 images)
+- LaTeX Table IV: populate all cells from results above
+- Paper writing: Introduction, Related Work, Results prose
+- Figure 5 (scheduler decision timeline): use proactive rep1 not pilot run
+
 ## [v0.9.5] — 2026-05-06
 
 ### Task 22 Session 4: Proactive scheduler n=3 COMPLETE

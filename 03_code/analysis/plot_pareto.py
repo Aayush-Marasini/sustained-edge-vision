@@ -1,107 +1,73 @@
-"""
-plot_pareto.py
-==============
-Pareto plot: FPS vs J/frame for all 4 scheduler configurations.
-Clean layout, no label overlap, INT8 clearly separated.
-"""
+# 03_code/analysis/plot_pareto.py
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import matplotlib.lines as mlines
+import numpy as np
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-OUT  = REPO / "05_results" / "plots"
+OUT = Path(__file__).resolve().parents[2] / "05_results" / "plots"
 OUT.mkdir(parents=True, exist_ok=True)
 
-configs = [
-    {"label": "S0: FP32 @ 2400 MHz\n(baseline)",
-     "fps": 14.582, "fps_std": 0.019, "jpf": 0.559, "jpf_std": 0.004,
-     "color": "#1f77b4", "marker": "o", "pareto": True},
-    {"label": "S1: FP32 @ 1800 MHz\n(scheduler state)",
-     "fps": 12.432, "fps_std": 0.015, "jpf": 0.482, "jpf_std": 0.004,
-     "color": "#2ca02c", "marker": "o", "pareto": True},
-    {"label": "S2: FP32 @ 1500 MHz\n(scheduler state)",
-     "fps": 11.012, "fps_std": 0.016, "jpf": 0.484, "jpf_std": 0.002,
-     "color": "#ff7f0e", "marker": "o", "pareto": True},
-    {"label": "INT8 @ 2400 MHz\n(low INT8 utilization,\nconversion overhead)",
-     "fps": 8.315,  "fps_std": 0.019, "jpf": 0.947, "jpf_std": 0.001,
-     "color": "#d62728", "marker": "X", "pareto": False},
-]
-
-fig, ax = plt.subplots(figsize=(9, 6))
-
-# Pareto frontier line (S2 → S1 → S0)
-pareto = sorted([c for c in configs if c["pareto"]], key=lambda x: x["fps"])
-ax.plot([p["fps"] for p in pareto], [p["jpf"] for p in pareto],
-        color="steelblue", linestyle="--", linewidth=1.5, zorder=2,
-        label="DVFS Pareto frontier")
-
-# Plot each point
-for c in configs:
-    ax.errorbar(c["fps"], c["jpf"],
-                xerr=c["fps_std"], yerr=c["jpf_std"],
-                marker=c["marker"], markersize=14, capsize=5,
-                color=c["color"], linestyle="", zorder=5,
-                markeredgecolor="white", markeredgewidth=0.8)
-
-# Manual labels — positioned to avoid overlap
-label_offsets = {
-    "S0": (8, -22),
-    "S1": (8,  10),
-    "S2": (-105, 10),
-    "INT8": (8, 8),
+conditions = {
+    "Static-S0\n(uncontrolled)": {"fps": 13.024, "j": 0.633, "cv": 11.9,
+                                   "marker": "X", "color": "#C00000", "size": 120},
+    "Static-S1":                 {"fps": 12.804, "j": 0.471, "cv":  3.4,
+                                   "marker": "s", "color": "#FF8C00", "size": 100},
+    "Static-S2":                 {"fps": 11.326, "j": 0.475, "cv":  3.1,
+                                   "marker": "s", "color": "#FFC000", "size": 100},
+    "Reactive-\nThreshold":      {"fps": 11.674, "j": 0.596, "cv": 12.2,
+                                   "marker": "^", "color": "#7030A0", "size": 110},
+    "Proactive\n(Ours)":         {"fps": 12.464, "j": 0.566, "cv": 10.2,
+                                   "marker": "*", "color": "#1F77B4", "size": 250},
 }
-for c in configs:
-    key = c["label"][:3].strip(":")
-    dx, dy = label_offsets.get(key, (8, 8))
-    ax.annotate(c["label"],
-                xy=(c["fps"], c["jpf"]),
-                xytext=(dx, dy),
-                textcoords="offset points",
-                fontsize=9, color=c["color"],
-                fontweight="bold",
-                arrowprops=dict(arrowstyle="-", color=c["color"],
-                                lw=0.8) if abs(dx) > 20 else None)
 
-# Vertical separator between DVFS region and INT8
-ax.axvline(x=9.8, color="gray", linestyle=":", linewidth=1, alpha=0.6)
-ax.text(9.7, 0.39, "Dominated\nregion", fontsize=8.5, color="#d62728",
-        ha="right", va="bottom", style="italic")
-ax.text(9.9, 0.39, "Pareto-optimal\nregion", fontsize=8.5, color="steelblue",
-        ha="left", va="bottom", style="italic")
-# Scheduler framing arrow
-ax.annotate("Scheduler switches\nbetween these states\nproactively",
-            xy=(12.432, 0.482), xytext=(10.5, 0.72),
-            fontsize=8, color="steelblue",
-            arrowprops=dict(arrowstyle="->", color="steelblue", lw=1.2))
-# Axes
-ax.set_xlabel("Throughput (FPS)", fontsize=12)
-ax.set_ylabel("Energy per inference (J/frame)", fontsize=12)
-ax.set_title("Scheduler Configuration Space: DVFS States vs INT8 Quantization\n"
-             "Raspberry Pi 5 · Passive Cooling · FP32 YOLOv8n · n=3 × 5-min runs each",
-             fontsize=11)
-ax.set_xlim(6.5, 16.8)
-ax.set_ylim(0.36, 1.05)
-ax.grid(True, alpha=0.25)
+fig, ax = plt.subplots(figsize=(7, 5))
 
-# Legend
-handles = [
-    mpatches.Patch(color="#1f77b4", label="S0: FP32 @ 2400 MHz  14.58 FPS  8.15 W  0.559 J/fr"),
-    mpatches.Patch(color="#2ca02c", label="S1: FP32 @ 1800 MHz  12.43 FPS  5.99 W  0.482 J/fr  (−26% W, −14% J/fr)"),
-    mpatches.Patch(color="#ff7f0e", label="S2: FP32 @ 1500 MHz  11.01 FPS  5.33 W  0.484 J/fr  (−35% W, −13% J/fr)"),
-    mpatches.Patch(color="#d62728", label="INT8 @ 2400 MHz        8.31 FPS  7.87 W  0.947 J/fr  (−3.4% W, +69% J/fr)"),
-    mlines.Line2D([0],[0], color="steelblue", linestyle="--", label="DVFS Pareto frontier"),
-]
-ax.legend(handles=handles, loc="upper center",
-          bbox_to_anchor=(0.5, -0.13),
-          ncol=1, fontsize=8.2,
-          framealpha=0.9, edgecolor="gray")
+for name, d in conditions.items():
+    ax.scatter(d["j"], d["fps"],
+               marker=d["marker"], color=d["color"],
+               s=d["size"], zorder=5,
+               edgecolors="black", linewidths=0.6)
+    offset = {"Static-S0\n(uncontrolled)": (0.005, -0.12),
+              "Static-S1":                 (0.004,  0.05),
+              "Static-S2":                 (0.004, -0.12),
+              "Reactive-\nThreshold":      (0.004,  0.05),
+              "Proactive\n(Ours)":         (-0.055, 0.05)}.get(name, (0.005, 0.05))
+    ax.annotate(name,
+                xy=(d["j"], d["fps"]),
+                xytext=(d["j"] + offset[0], d["fps"] + offset[1]),
+                fontsize=8.5, ha="left",
+                color=d["color"])
 
-plt.tight_layout()
-plt.subplots_adjust(bottom=0.32)
+# Dominance region annotation
+ax.annotate("", xy=(0.44, 13.2), xytext=(0.65, 11.2),
+            arrowprops=dict(arrowstyle="->", color="gray",
+                            lw=1.2, linestyle="dashed"))
+ax.text(0.535, 12.15, "better", fontsize=8, color="gray",
+        rotation=-45, ha="center")
 
-out_path = OUT / "pareto_all_configs.png"
-plt.savefig(out_path, dpi=300, bbox_inches="tight")
-print(f"Saved: {out_path}")
+ax.set_xlabel("Energy per frame (J/frame)\n← lower is better",
+              fontsize=11)
+ax.set_ylabel("Mean FPS  → higher is better", fontsize=11)
+ax.set_title("Scheduler Operating Points:\nThroughput vs Energy Efficiency",
+             fontsize=11, fontweight="bold")
+ax.grid(True, alpha=0.3)
+ax.set_xlim(0.42, 0.70)
+ax.set_ylim(10.8, 13.6)
+
+# Zero throttle annotation
+for name, d in conditions.items():
+    if "S0" in name and "Static" in name:
+        ax.annotate("✗ throttles", xy=(d["j"], d["fps"]),
+                    xytext=(d["j"] + 0.005, d["fps"] - 0.35),
+                    fontsize=7.5, color="#C00000")
+    elif name not in ["Static-S0\n(uncontrolled)"]:
+        ax.annotate("✓ no throttle", xy=(d["j"], d["fps"]),
+                    xytext=(d["j"] + 0.005, d["fps"] - 0.35),
+                    fontsize=7, color="#375623", alpha=0.7)
+
+fig.tight_layout()
+outpath = OUT / "pareto_frontier.png"
+fig.savefig(outpath, dpi=200, bbox_inches="tight")
+plt.close(fig)
+print(f"Saved: {outpath}")

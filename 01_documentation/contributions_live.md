@@ -230,3 +230,14 @@ Once thermometer arrives:
 - S1: T_plateau 80.4±0.9°C, zero throttle both reps — consistent
 - analyze_thermal_validation.py: auto-discovers all reps via glob
 - Next: Session 2 (S1 rep3, S2 reps 2+3)
+
+### 2026-05-06
+- ALL BASELINE CAMPAIGN RUNS COMPLETE (15 runs total)
+- Proactive scheduler n=3: zero throttle events, S1 used 53.9% of runtime
+- Reactive-Threshold n=3: zero throttle events, permanently in S2 (89.3%)
+- PowerZ energy analysis: proactive beats reactive +6.8% FPS, -5.1% J/frame
+- Pareto frontier figure generated (pareto_frontier.png)
+- INT8 comparison figure generated (int8_vs_fp32_comparison.png)
+- Scheduler decision timeline figure generated (scheduler_decision_timeline.png)
+- Core paper result confirmed: derivative signal enables S1 access, reactive cannot
+- Next: Task 19 (mAP), Table IV population, paper writing
