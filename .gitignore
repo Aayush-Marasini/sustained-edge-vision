@@ -73,3 +73,10 @@ desktop.ini
 # Workload videos (download via scripts or README instructions)
 04_workload/videos/*.mp4
 04_workload/videos/*.avi
+yolov8n.pt
+04_workload/val_images/
+04_workload/val_labels/
+05_results/runs/*smoketest*/
+05_results/runs/*dht11_integration*/
+05_results/runs/*practice*/
+05_results/runs/*_smoke/
