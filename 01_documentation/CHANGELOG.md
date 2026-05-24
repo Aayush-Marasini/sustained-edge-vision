@@ -7,6 +7,12 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## v0.11.0 â€” 2026-05-24
+- ADDED: Active-cooling oracle baseline (Static-S0 with Pi 5 official fan, n=3)
+  - FPS: 14.52Â±0.01, throttle events: 0, cooling_condition: active_fan
+  - run_metadata.json cooling_condition corrected from "passive" to "active_fan"
+  - Paper use: upper-bound oracle for scheduler efficiency comparison
+  
 
 ## [v0.9.7] â€” 2026-05-06
 
@@ -1086,8 +1092,8 @@ risks, plus DHT11 ambient sensor hardware integration verified on Pi 5.
 
 ### Notes
 - ...
-## v0.11.0 — 2026-05-24
+## v0.11.0 ï¿½ 2026-05-24
 - ADDED: Active-cooling oracle (Static-S0, official Pi 5 fan, n=3)
   - FPS: 14.52 FPS mean, 0 throttle events, plateau TBD pending plateau check
   - cooling_condition corrected to active_fan in run_metadata.json
-  - Paper use: oracle upper bound for scheduler efficiency (§V, §VI)
+  - Paper use: oracle upper bound for scheduler efficiency (ï¿½V, ï¿½VI)
