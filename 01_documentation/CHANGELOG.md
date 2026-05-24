@@ -1086,3 +1086,8 @@ risks, plus DHT11 ambient sensor hardware integration verified on Pi 5.
 
 ### Notes
 - ...
+## v0.11.0 — 2026-05-24
+- ADDED: Active-cooling oracle (Static-S0, official Pi 5 fan, n=3)
+  - FPS: 14.52 FPS mean, 0 throttle events, plateau TBD pending plateau check
+  - cooling_condition corrected to active_fan in run_metadata.json
+  - Paper use: oracle upper bound for scheduler efficiency (§V, §VI)
