@@ -82,5 +82,5 @@
     "sensor_failure_rate": 0.0,
     "scheduler_queue_drop_count": 0
   },
-  "cooling_note": "Official Pi 5 active cooler. cooling_condition corrected from passive; run_thermal_validation.py hardcodes passive in CLI args."
+  "cooling_note": "Official Pi 5 active cooler on SoC. cooling_condition corrected post-run from passive; run_thermal_validation.py hardcodes passive in CLI args."
 }
