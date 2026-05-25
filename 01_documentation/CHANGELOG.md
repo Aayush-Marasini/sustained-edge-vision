@@ -7,6 +7,26 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## FINAL LOCKED RESULTS (v0.12.1) — USE THESE IN PAPER
+
+Power source: analyze_powerz_robust.py (active-power filter, timing-independent)
+FPS source: compute_statistics.py (bootstrap CI from telemetry, n=3)
+
+| Condition     | FPS    | Power W | J/frame | Throttle |
+|---------------|--------|---------|---------|----------|
+| Static-S0     | 13.200 | 7.215   | 0.547   | 1823     |
+| Static-S1     | 12.820 | 6.363   | 0.496   | 0        |
+| Static-S2     | 11.339 | 5.637   | 0.497   | 0        |
+| Reactive      | 11.796 | 5.986   | 0.508   | 0        |
+| Proactive     | 12.574 | 6.275   | 0.499   | 0        |
+| Active-Oracle | 14.520 | 8.183   | 0.564   | 0        |
+
+KEY FRAMING (v0.12.0 correction):
+- Old "Proactive vs Reactive: -5.1% J/frame" was wrong (PowerZ alignment error)
+- Correct value: -1.8% J/frame
+- NEW strongest energy claim: Proactive 0.499 vs Oracle 0.564 = -11.5% J/frame
+- Proactive achieves 86.6% of oracle FPS at 11.5% better energy efficiency
+
 ## v0.12.0 — 2026-05-24
 
 ### PowerZ analysis rewritten (No Silent Changes)
@@ -30,7 +50,7 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
   test frames: a2bcf8d13cbaf4d9. FP32 OpenVINO inference is
   deterministic across all DVFS states. Paper claim: DVFS scheduling
   affects thermal/power behavior only, not detection accuracy.
-  
+
 ## v0.11.0 — 2026-05-24
 - ADDED: Active-cooling oracle baseline (Static-S0 with Pi 5 official fan, n=3)
   - FPS: 14.52±0.01, throttle events: 0, cooling_condition: active_fan
