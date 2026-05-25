@@ -1,0 +1,5 @@
+condition,n_reps,fps_mean,fps_std,fps_cv_pct,power_mean_w,j_per_frame,j_per_frame_std,j_per_correct_detection,t_plateau_c,thermal_safety_margin_c,thermal_overshoot_c,throttle_event_count,throttle_exposure_pct,scheduler_decision_count,passive_cooling_efficiency_pct
+Static-S0,3,13.2,0.056,11.8,7.215,0.5862,0.0028,1.0896,84.84,-2.84,N/A,1823,50.93,0,85.6
+Static-S1,3,12.82,0.041,3.3,6.363,0.5245,0.0054,0.9748,80.33,1.67,N/A,0,0.0,0,83.1
+Static-S2,3,11.339,0.018,3.1,5.637,0.5241,0.0017,0.9741,73.4,8.6,N/A,0,0.0,0,73.5
+Active-Oracle,3,15.43,0.005,3.3,8.183,0.5632,0.002,1.0468,63.38,18.62,N/A,0,0.0,0,100.0

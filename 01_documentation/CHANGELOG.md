@@ -7,6 +7,30 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## v0.12.0 — 2026-05-24
+
+### PowerZ analysis rewritten (No Silent Changes)
+- REPLACED: analyze_powerz_30min.py end-time anchoring with active-power
+  filter approach in analyze_powerz_robust.py.
+  Previous method was sensitive to human PowerZ start/stop timing (±30-60s
+  drift changes the sampled thermal window). New method filters to
+  inference-level samples (>4W threshold), completely timing-independent.
+  Expected J/frame drift from old→new: <2% for clean runs.
+
+### New analysis scripts
+- ADDED: compute_sustainability_metrics.py — SUSCOM required metrics:
+  J/correct-detection (J/frame / mAP50), throttle exposure %, thermal
+  safety margin (T_throttle - T_plateau), passive cooling efficiency
+  vs active oracle.
+- ADDED: generate_paper_figures.py — 6 paper figures (fig3–fig8),
+  hardcoded run mapping for reliable cross-platform discovery.
+
+### Output invariance verified
+- VERIFIED: SHA256(inference output) identical for S0, S1, S2 over 10
+  test frames: a2bcf8d13cbaf4d9. FP32 OpenVINO inference is
+  deterministic across all DVFS states. Paper claim: DVFS scheduling
+  affects thermal/power behavior only, not detection accuracy.
+  
 ## v0.11.0 — 2026-05-24
 - ADDED: Active-cooling oracle baseline (Static-S0 with Pi 5 official fan, n=3)
   - FPS: 14.52±0.01, throttle events: 0, cooling_condition: active_fan
