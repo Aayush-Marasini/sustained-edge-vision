@@ -7,6 +7,21 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+## v0.12.1 — 2026-05-25
+### Fixed
+- run_thermal_validation.py: --cooling-condition argument replaces the
+  hardcoded "passive" string. Active-cooling oracle runs (2026-05-24) had
+  their cooling_condition metadata field manually patched post-hoc; this
+  fix prevents future occurrences.
+
+ ### Documented
+- Clarified in thermal_scheduler.py docstring that the proactive T_dot 
+  trigger did not fire in the n=3 paper-quality runs at 23°C ambient. 
+  All escalations used the reactive threshold. The T_dot trigger remains 
+  active as a safety net for steeper heating scenarios (demonstrated 
+  in pilot run; relevant under higher ambient or higher-power workloads).
+ 
+
 ## FINAL LOCKED RESULTS (v0.12.1) — USE THESE IN PAPER
 
 Power source: analyze_powerz_robust.py (active-power filter, timing-independent)

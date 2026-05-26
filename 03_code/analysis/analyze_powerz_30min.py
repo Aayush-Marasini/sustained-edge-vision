@@ -1,3 +1,32 @@
+#!/usr/bin/env python3
+"""
+analyze_powerz_30min.py  — DEPRECATED
+
+This script used end-time-anchored alignment which proved sensitive to
+human PowerZ stop-timing variability. Results from this script are
+documented in CHANGELOG v0.9.6 but were superseded by the active-power
+filter method in v0.12.0.
+
+DO NOT USE for paper results. Use analyze_powerz_robust.py instead.
+
+See CHANGELOG v0.12.0 for the methodology change rationale and the
+time-at-state cross-validation that confirms the new numbers.
+
+Retained for historical record only.
+"""
+import sys
+
+sys.exit(
+    "DEPRECATED: this script's end-time-anchored alignment was replaced "
+    "in v0.12.0 by analyze_powerz_robust.py (active-power filter). "
+    "Use that script for all paper results."
+)
+
+# ============================================================================
+# ORIGINAL CODE BELOW — kept for historical reference, never executed.
+# ============================================================================
+# (Original code preserved from v0.9.6 — see git history for details)
+
 """
 analyze_powerz_30min.py
 Extracts mean power and J/frame from the 30-minute paper-quality runs.
