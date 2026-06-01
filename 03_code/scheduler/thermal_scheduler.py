@@ -107,7 +107,7 @@ class SchedulerConfig:
     T_dot_concern_floor: float = 65.0  # °C — only use T_dot trigger above this
 
     # Anti-oscillation safeguards
-    dwell_time_s: float = 20.0   # minimum seconds between ANY state change
+    dwell_time_s: float = 0.0 #ALBATION: dwell disabled to isolate guard contribution
     n_confirm: int = 3            # consecutive samples required before escalation
 
     # Derived floor (informational — not used in logic, documents calibration)
