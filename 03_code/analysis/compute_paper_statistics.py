@@ -86,7 +86,7 @@ def main():
     # Per-condition aggregation
     cond_rows = []
     for cond in ["Static-S0","Static-S1","Static-S2",
-                 "Reactive-Threshold","Proactive","Active-Oracle"]:
+                 "Reactive-Threshold","Proactive", "Proactive-NoDwell","Active-Oracle"]:
         if cond not in by_c:
             continue
         reps = by_c[cond]
@@ -122,7 +122,7 @@ def main():
     proactive = by_c["Proactive"]
     pair_rows = []
     for compare_to in ["Reactive-Threshold","Static-S1","Static-S2",
-                       "Static-S0","Active-Oracle"]:
+                       "Static-S0","Proactive-NoDwell","Active-Oracle"]:
         if compare_to not in by_c:
             continue
         ref = by_c[compare_to]

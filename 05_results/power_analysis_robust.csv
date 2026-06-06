@@ -17,3 +17,6 @@ Proactive (Ours),3,Proactive (Ours) rep3,6.2906,0.7827,11.9133,21325,1790.0,0.52
 Active-Oracle,1,Active-Oracle rep1,8.1944,0.9039,14.5313,26011,1790.0,0.5639,1801051,100.0
 Active-Oracle,2,Active-Oracle rep2,8.2087,0.9129,14.5235,25997,1790.0,0.5652,1801202,100.0
 Active-Oracle,3,Active-Oracle rep3,8.1446,0.8995,14.5338,26015,1790.0,0.5604,1801118,100.0
+Proactive-NoDwell,1,Proactive-NoDwell rep1,6.5545,0.728,12.3175,22049,1790.1,0.5321,1799302,100.0
+Proactive-NoDwell,2,Proactive-NoDwell rep2,6.1623,0.7608,11.3365,20293,1790.1,0.5436,1794991,100.0
+Proactive-NoDwell,3,Proactive-NoDwell rep3,6.4597,0.7844,12.1329,21718,1790.0,0.5324,1797594,100.0

@@ -7,6 +7,36 @@ Format: ## [YYYY-MM-DD] Short Title
 Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
+
+## v0.13.0 — 2026-06-05
+### Added — No-dwell ablation (n=3 paper-quality)
+- Proactive-NoDwell: dwell_time_s = 0.0, all other params identical to Proactive.
+- n=3, 30-min, WiFi blocked, ambient 24.9/23.3/24.6°C (rep1/2/3); ~1-2°C above
+  the 23°C campaign nominal — reported explicitly in the paper.
+- PowerZ recorded all three (2026-06-05_nodwell_rep{1,2,3}.db). n=1 pilot
+  (2026-06-01) deleted before paper-quality runs.
+- Run dirs: 2026-06-05_{183203,190704,195204}_scheduled_high_S0_rep{1,2,3}.
+- Finding: removing dwell produces erratic, run-dependent behavior — rep1 locked
+  S1, reps2&3 escalated to S2 at divergent times (602s, 1520s). FPS std rose
+  0.070→0.426 (6.1×), power std 0.050→0.167 (3.3×). d_FPS(Proactive vs NoDwell)
+  = -0.21 (negligible): dwell is a regulation/reproducibility mechanism, NOT a
+  throughput win. Trades ~1% FPS for thermal regulation.
+- Code: branch ablation/no-dwell-2026-05-25 (NOT merged to main; main dwell=20.0).
+
+### Changed — analysis scripts (Proactive-NoDwell condition added)
+- analyze_powerz_robust.py: MAPPING + per-condition summary loop.
+- compute_paper_statistics.py: per-condition list + pairwise compare_to list.
+- compute_sustainability_metrics.py: MAPPING + aggregation loop.
+- generate_paper_figures.py: COLORS (#7F00FF), ORDER, MAPPING.
+- Pipeline re-run clean: 21/21 runs, 100% PowerZ coverage.
+
+### Superseded — No Silent Changes disclosure
+- The v0.12.1 "FINAL LOCKED RESULTS" table (Static-S0 FPS 13.200, Proactive
+  12.574, etc.) used the telemetry-derived FPS method. It is SUPERSEDED by the
+  inference_log throughput method. Single source of truth for all paper FPS/
+  power/J-frame numbers is now condition_stats_paper.csv (Static-S0 12.307,
+  Proactive 11.820). No data changed — only the FPS denominator definition.
+
 ## v0.12.1 — 2026-05-25
 ### Fixed
 - run_thermal_validation.py: --cooling-condition argument replaces the

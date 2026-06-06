@@ -97,6 +97,12 @@ MAPPING: List[RunPair] = [
             "2026-05-24_190352_thermalval_S0_active_cooling", "Active-Oracle", 2),
     RunPair("active_cooling_S0_rep3.db",
             "2026-05-24_193737_thermalval_S0_active_cooling", "Active-Oracle", 3),
+    RunPair("2026-06-05_nodwell_rep1.db",
+            "2026-06-05_183203_scheduled_high_S0_rep1", "Proactive-NoDwell", 1),
+    RunPair("2026-06-05_nodwell_rep2.db",
+            "2026-06-05_190704_scheduled_high_S0_rep2", "Proactive-NoDwell", 2),
+    RunPair("2026-06-05_nodwell_rep3.db",
+            "2026-06-05_195204_scheduled_high_S0_rep3", "Proactive-NoDwell", 3),
 ]
 
 
@@ -221,7 +227,7 @@ def main():
     print(f"{'Condition':<22} {'n':>3} {'Power_W':>18} {'J/frame':>18}")
     print("-" * 65)
     for cond in ["Static-S0","Static-S1","Static-S2",
-                 "Reactive-Threshold","Proactive (Ours)","Active-Oracle"]:
+                 "Reactive-Threshold","Proactive (Ours)","Proactive-NoDwell","Active-Oracle"]:
         if cond not in by_c: continue
         rows = by_c[cond]
         pw = [r["mean_power_w"] for r in rows]

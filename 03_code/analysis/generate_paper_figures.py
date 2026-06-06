@@ -39,10 +39,11 @@ COLORS = {
     "Static-S2":          "#56B4E9",
     "Reactive-Threshold": "#D55E00",
     "Proactive":          "#009E73",
+    "Proactive-NoDwell":  "#7F00FF",
     "Active-Oracle":      "#CC79A7",
 }
 ORDER = ["Static-S0","Static-S1","Static-S2",
-         "Reactive-Threshold","Proactive","Active-Oracle"]
+         "Reactive-Threshold","Proactive","Proactive-NoDwell","Active-Oracle"]
 
 # Hardcoded mapping — same run dirs as compute_statistics.py
 MAPPING: Dict[str, List[str]] = {
@@ -70,6 +71,11 @@ MAPPING: Dict[str, List[str]] = {
         "2026-05-06_011427_scheduled_high_S0_rep1",
         "2026-05-06_031811_scheduled_high_S0_rep2",
         "2026-05-06_035911_scheduled_high_S0_rep3",
+    ],
+    "Proactive-NoDwell": [
+        "2026-06-05_183203_scheduled_high_S0_rep1",
+        "2026-06-05_190704_scheduled_high_S0_rep2",
+        "2026-06-05_195204_scheduled_high_S0_rep3",
     ],
     "Active-Oracle": [
         "2026-05-24_182759_thermalval_S0_active_cooling",
