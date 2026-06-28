@@ -199,6 +199,31 @@ def decide(
     Updates sched_state.current_state, .last_switch_monotonic,
     .escalate_confirm_count, .recover_confirm_count, .total_decisions,
     .total_state_changes, .throttled_events_observed.
+
+
+    Proactive DVFS decision.
+    
+    Trigger logic (evaluated in order):
+      1. Recovery: T < T_rec AND in higher state → step down (with confirmation)
+      2. Proactive escalation: T > T_floor AND T_dot > T_dot_threshold → step up
+      3. Reactive escalation: T > T_esc → step up
+      4. Hold: otherwise
+    
+    Note on trigger usage in nominal-ambient runs:
+      At 23°C ambient, heating rates during the run's first ~3 minutes 
+      are high (T_dot up to 0.8°C/s) but T is still below T_floor=65°C, 
+      so the proactive trigger is inactive. By the time T crosses 65°C, 
+      the heating curve has flattened and T_dot has dropped below 
+      T_dot_threshold=0.5°C/s. As a result, all escalations in the 
+      n=3 paper runs at 23°C used the reactive threshold (rule 3 above).
+      
+      The proactive trigger is preserved as a safety mechanism for 
+      faster-heating scenarios (higher ambient, smaller heatsink, 
+      higher-power workloads) where T_dot may exceed threshold while 
+      T is in the concern zone before the absolute threshold is crossed.
+      The pilot run (CHANGELOG v0.9.1) demonstrates trigger arming 
+      behavior at run start when T_dot is high.
+
     """
     if now_monotonic is None:
         raise ValueError(

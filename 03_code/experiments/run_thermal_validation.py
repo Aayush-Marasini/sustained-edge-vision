@@ -124,6 +124,9 @@ def main() -> int:
                    help="OpenVINO model dir (default: yolov8n_fp32).")
     p.add_argument("--video",          type=Path, default=DEFAULT_VIDEO,
                    help="Workload video (default: thermal_benchmark_30fps.mp4).")
+    p.add_argument("--cooling-condition", type=str, default="passive",
+                    choices=["passive", "active_fan"],
+                    help="Cooling configuration. Logged into run_metadata.json.")
     args = p.parse_args()
 
     # ---- preflight ----------------------------------------------------------
@@ -165,7 +168,7 @@ def main() -> int:
             "--video",          str(args.video),
             "--duration",       str(args.duration),
             "--ambient-temp-c", str(args.ambient_temp_c),
-            "--cooling",        "passive",
+            "--cooling",        args.cooling_condition,
             "--dht11-pin",      str(args.dht11_pin),
             "--tags",           tags,
             "--sampling-rate-hz", "2.0",

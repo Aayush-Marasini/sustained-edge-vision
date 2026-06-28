@@ -80,3 +80,18 @@ yolov8n.pt
 05_results/runs/*dht11_integration*/
 05_results/runs/*practice*/
 05_results/runs/*_smoke/
+05_results/power_data/*.db-journal
+
+05_results/power_data/*.db-journal
+# Internal/private (kept outside public repo)
+Literature_final.xlsx
+contributions_live.md
+proposal/
+01_documentation/proposal/
+
+runs_inventory.txt
+
+runs_inventory.txt
+
+runs_inventory.txt
+

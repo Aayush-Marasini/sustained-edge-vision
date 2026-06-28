@@ -1,6 +1,0 @@
-condition,n_reps,mean_power_w,std_power_w,j_per_frame_mean,j_per_frame_std
-Static-S0,3,8.2408,0.0295,0.6328,0.0056
-Static-S1,3,6.0345,0.0611,0.4713,0.0065
-Static-S2,3,5.3771,0.0341,0.4748,0.0034
-Reactive-Threshold,3,6.9572,0.0941,0.596,0.0079
-Proactive,3,7.0523,0.0434,0.5658,0.0064

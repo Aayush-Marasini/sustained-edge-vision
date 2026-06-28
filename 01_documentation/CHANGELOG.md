@@ -8,6 +8,45 @@ Each entry includes: Added / Changed / Removed / Notes sections as needed.
 
 ---
 
+## v0.13.1 — 2026-06-12
+
+### Added
+- Root `README.md`, `requirements.txt` (frozen via `pip freeze` on Pi 5).
+- Raw run directories for Proactive-No-Dwell condition (n=3, 2026-06-05),
+  produced on branch `ablation/no-dwell-2026-05-25`. These complete the
+  raw-data backing for paper Table 7.
+- `03_code/training/train_yolov8n.ipynb`: training notebook for the frozen
+  YOLOv8n baseline (deterministic, seed=42).
+- Rewritten `05_results/runs/README.md` as a per-directory manifest mapping
+  each run to its paper condition (Table reference).
+- `cooling-condition` CLI argument in `run_thermal_validation.py` (used for
+  active-cooling reference runs).
+- Documentation block in `thermal_scheduler.py` explaining derivative-trigger
+  dormancy at nominal ambient.
+
+### Removed (repository cleanup for journal submission)
+- Deprecated analysis scripts and their legacy CSV outputs:
+  `compute_statistics.py`, `analyze_all_conditions.py`, `analyze_powerz_30min.py`,
+  `plot_pareto.py`, `merge_power_into_stats.py`,
+  `condition_stats.csv`, `condition_stats_with_power.csv`,
+  `pairwise_comparisons.csv`, `run_stats.csv`, `power_analysis_30min.csv`.
+  Canonical sources remain `condition_stats_paper.csv` /
+  `pairwise_comparisons_paper.csv` / `sustainability_metrics.csv` produced by
+  `compute_paper_statistics.py` and `compute_sustainability_metrics.py`.
+- Dormant empty packages (`high_confidence_confirmation/`, `experiments/baselines/`).
+- `log_telemetry_DEPRECATED.py`.
+- Internal documents (proposal PDFs, `Conference-template-A4.doc`,
+  `Literature_final.xlsx`, `contributions_live.md`) — relocated outside the repo.
+- `auth-test.txt`.
+
+### Updated
+- Paper figures regenerated from canonical `_paper.csv` (June 9–10, 2026):
+  `fig3_thermal_trajectories.png`, `fig4_fps_distributions.png`,
+  `fig5_time_at_state.png`, `fig6_pareto_fps_jpf.png`,
+  `fig7_scheduler_timeline.png`, `config_comparison.png`.
+- `.gitignore`: ignore PowerZ raw exports (`05_results/power_data/*.db*`),
+  re-relocated private documents, scratch file `runs_inventory.txt`.
+
 ## v0.13.0 — 2026-06-05
 ### Added — No-dwell ablation (n=3 paper-quality)
 - Proactive-NoDwell: dwell_time_s = 0.0, all other params identical to Proactive.
