@@ -1,35 +1,24 @@
 # Workload Videos
 
-This directory contains test videos for YOLOv8n inference workload.
+The paper's benchmark video is `thermal_benchmark_30fps.mp4`, located at
+`00_frozen_artifacts/benchmark_workloads/thermal_benchmark_30fps.mp4` and
+locked via SHA256SUMS.txt.
 
-## Videos NOT in Git
+## What is the benchmark video?
 
-Video files (.mp4, .avi) are excluded from version control due to size.
-Download them using the instructions below.
+- The test split of the RDD2022-USA subset (n=961 disjoint images, seed 42)
+- Stitched at 30 FPS via OpenCV into a 32-second video
+- Looped ~56 times to cover each 30-minute experimental run
+- Constructed so no frame appears in training or validation splits, forcing
+  full feature extraction on every frame
 
-## Test Video (Phase D Development)
+## Reproducing the benchmark video
 
-**File:** `test_traffic.mp4`
-**Source:** Pexels (CC0 license)
-**URL:** https://videos.pexels.com/video-files/854100/854100-hd_1920_1080_25fps.mp4
-**Specs:** 1920×1080, 25 FPS, 7.8 MB, 393 frames (~15.7 seconds)
+Run `03_code/workload/build_benchmark_video.py` on the RDD2022-USA test split.
+The output must match SHA256 `67fb8f1f06b21c693e74c140040f76e6f33a8b02062910c9384c704df0f8dab2`.
 
-```bash
-cd ~/sustained-edge-vision/04_workload/videos
-wget -O test_traffic.mp4 "https://videos.pexels.com/video-files/854100/854100-hd_1920_1080_25fps.mp4"
-```
+## Historical / development videos
 
-## Production Videos (Phase D Baseline Runs)
-
-TBD: Curate 2-3 moderate-complexity videos per WorkPlan Task 13.
-
-Criteria:
-- Creative Commons (CC-BY or CC0)
-- 1920×1080 or 1280×720, 30 FPS
-- Moderate object density (5-15 detectable objects/frame)
-- Realistic scenes (traffic, warehouse, retail)
-- Duration: 30-60 seconds
-
-## Provenance
-
-- test_traffic.mp4: Downloaded 2026-04-26 from Pexels
+This directory previously hosted a Pexels traffic video used for early
+pipeline testing (Phase D). That video was NOT used for any results in the
+paper and is intentionally excluded from Git.
