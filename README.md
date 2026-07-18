@@ -1,5 +1,4 @@
-# Sustained Edge Vision: Proactive DVFS Thermal Control on a Passively-Cooled Raspberry Pi 5
-
+# Sustainable Edge Vision via Empirically Calibrated DVFS: Eliminating Thermal Throttling on Passively Cooled Hardware
 Code, data, and frozen artifacts for the paper:
 
 > **Sustainable Edge Vision via Empirically Calibrated
