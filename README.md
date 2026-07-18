@@ -2,7 +2,9 @@
 
 Code, data, and frozen artifacts for the paper:
 
-> **Empirically-Calibrated DVFS: Eliminating Thermal Throttling on Passively-Cooled Edge Devices**
+> **Sustainable Edge Vision via Empirically Calibrated
+DVFS: Eliminating Thermal Throttling on Passively
+Cooled Hardware**
 > Aayush Marasini, Zhaoxian Zhou — University of Southern Mississippi
 > *(under review; citation will be added upon publication)*
 
